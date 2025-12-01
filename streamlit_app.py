@@ -187,6 +187,22 @@ st.markdown("""
         font-weight: bold;
         color: #3794ff;
     }
+    /* Left-align all dataframe cells */
+    div[data-testid="stDataFrame"] td {
+        text-align: left !important;
+    }
+    div[data-testid="stDataFrame"] th {
+        text-align: left !important;
+    }
+    [data-testid="stDataFrameResizable"] td {
+        text-align: left !important;
+    }
+    [data-testid="stDataFrameResizable"] th {
+        text-align: left !important;
+    }
+    .dvn-scroller td {
+        text-align: left !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
