@@ -27,8 +27,6 @@ GOAL_BASELINES = {'ST': 0.45, 'CF': 0.40, 'RW': 0.25, 'LW': 0.25, 'CAM': 0.20, '
 ASSIST_BASELINES = {'ST': 0.15, 'CF': 0.18, 'RW': 0.22, 'LW': 0.22, 'CAM': 0.28, 'RM': 0.18, 'LM': 0.18, 'CM': 0.12,
                     'DM': 0.06, 'RWB': 0.10, 'LWB': 0.10, 'RB': 0.08, 'LB': 0.08, 'CB': 0.02, 'GK': 0.001}
 POS_SORT = {'ST':1,'CF':2,'RW':3,'LW':4,'CAM':5,'RM':6,'LM':7,'CM':8,'DM':9,'RWB':10,'LWB':11,'RB':12,'LB':13,'CB':14,'GK':15}
-POS_COLORS = {'ST':'#a94442','CF':'#a94442','RW':'#c97a4a','LW':'#c97a4a','CAM':'#5a8a5a','RM':'#5a9a8a','LM':'#5a9a8a',
-              'CM':'#5a7a9a','DM':'#7a6a9a','RWB':'#6a7a8a','LWB':'#6a7a8a','RB':'#6a7a8a','LB':'#6a7a8a','CB':'#5a6a7a','GK':'#9a8a5a'}
 
 # =============================================================================
 # DATA LOADING
@@ -175,12 +173,11 @@ def predict_odds(df, team, team_xg=1.5):
 
 st.set_page_config(page_title="Player Odds Predictor", layout="wide")
 
-# Custom CSS to match the dark theme
+# Dark theme CSS
 st.markdown("""
 <style>
     .stApp {
         background-color: #1e1e1e;
-        color: #d4d4d4;
     }
     .header-box {
         background: #252525;
@@ -190,17 +187,6 @@ st.markdown("""
         font-weight: bold;
         color: #3794ff;
     }
-    .pos-badge {
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-weight: bold;
-        color: white;
-        display: inline-block;
-    }
-    .g-hot { color: #4ec9b0; font-weight: bold; }
-    .g-warm { color: #dcdcaa; }
-    .g-cold { color: #888; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -241,41 +227,23 @@ data = data.sort_values(sort_options[sort_by])
 # Header
 st.markdown(f'<div class="header-box">{selected_team} | Team xG: {team_xg} | {len(data)} players</div>', unsafe_allow_html=True)
 
-# Build HTML table
-rows_html = ""
-for _, r in data.iterrows():
-    pos_color = POS_COLORS.get(r['Pos'], '#666')
-    g_class = 'g-hot' if r['goal_odds'] < 4 else 'g-warm' if r['goal_odds'] < 8 else 'g-cold'
-    a_class = 'g-hot' if r['assist_odds'] < 4 else 'g-warm' if r['assist_odds'] < 8 else 'g-cold'
-    ratio_color = '#dc3545' if r['Type'] >= 0.6 else '#17a2b8' if r['Type'] <= 0.4 else '#6c757d'
-    
-    rows_html += f"""
-    <tr>
-        <td>{r['Player']}</td>
-        <td><span class="pos-badge" style="background:{pos_color}">{r['Pos']}</span></td>
-        <td class="{g_class}">{r['⚽ ATG']}</td>
-        <td class="{a_class}">{r['🎯 AST']}</td>
-        <td>{r['xG']}</td>
-        <td>{r['xA']}</td>
-        <td style="color:{ratio_color}">{r['Type']:.2f}</td>
-        <td>{r['Mins']}</td>
-    </tr>"""
+# Prepare display dataframe
+display_df = data[['Player', 'Pos', '⚽ ATG', '🎯 AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
 
-table_html = f"""
-<style>
-    .odds-table {{ font-family: 'Segoe UI', sans-serif; font-size: 13px; background: #1e1e1e; color: #d4d4d4; border-collapse: collapse; width: 100%; margin-top: 10px; }}
-    .odds-table th {{ background: #333; padding: 10px; text-align: left; border-bottom: 2px solid #555; }}
-    .odds-table td {{ padding: 8px 10px; border-bottom: 1px solid #3a3a3a; }}
-    .odds-table tr:hover {{ background: #2d2d2d; }}
-    .pos-badge {{ padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; }}
-    .g-hot {{ color: #4ec9b0; font-weight: bold; }}
-    .g-warm {{ color: #dcdcaa; }}
-    .g-cold {{ color: #888; }}
-</style>
-<table class="odds-table">
-    <tr><th>Player</th><th>Pos</th><th>⚽ ATG</th><th>🎯 AST</th><th>xG</th><th>xA</th><th>Type</th><th>Mins</th></tr>
-    {rows_html}
-</table>
-"""
-
-st.markdown(table_html, unsafe_allow_html=True)
+# Use st.dataframe with column_config for styling
+st.dataframe(
+    display_df,
+    use_container_width=True,
+    hide_index=True,
+    height=600,
+    column_config={
+        "Player": st.column_config.TextColumn("Player", width="medium"),
+        "Pos": st.column_config.TextColumn("Pos", width="small"),
+        "⚽ ATG": st.column_config.NumberColumn("⚽ ATG", format="%.2f", width="small"),
+        "🎯 AST": st.column_config.NumberColumn("🎯 AST", format="%.2f", width="small"),
+        "xG": st.column_config.NumberColumn("xG", format="%.2f", width="small"),
+        "xA": st.column_config.NumberColumn("xA", format="%.2f", width="small"),
+        "Type": st.column_config.NumberColumn("Type", format="%.2f", width="small"),
+        "Mins": st.column_config.NumberColumn("Mins", format="%d", width="small"),
+    }
+)
