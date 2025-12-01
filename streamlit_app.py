@@ -215,6 +215,35 @@ st.markdown("""
     table th:first-child, table td:first-child {
         display: none;
     }
+    
+    /* Mobile responsive */
+    @media screen and (max-width: 768px) {
+        table {
+            font-size: 11px;
+        }
+        table th, table td {
+            padding: 6px 4px;
+            white-space: nowrap;
+        }
+        .header-box {
+            font-size: 12px;
+            padding: 8px;
+        }
+        /* Make table scrollable horizontally */
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    }
+    
+    @media screen and (max-width: 480px) {
+        table {
+            font-size: 10px;
+        }
+        table th, table td {
+            padding: 5px 3px;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -325,4 +354,4 @@ styled_df = display_df.style.applymap(
 })
 
 # Display with st.write (respects styling better)
-st.write(styled_df.to_html(), unsafe_allow_html=True)
+st.markdown(f'<div class="table-container">{styled_df.to_html()}</div>', unsafe_allow_html=True)
