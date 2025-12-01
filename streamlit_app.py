@@ -258,8 +258,59 @@ st.markdown(f'<div class="header-box">{selected_team} | Team xG: {team_xg} | {le
 # Prepare display dataframe
 display_df = data[['Player', 'Pos', '⚽ ATG', '🎯 AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
 
-# Style the dataframe with left alignment
-styled_df = display_df.style.set_properties(**{
+# Position colors from original
+POS_COLORS = {
+    'ST': '#a94442', 'CF': '#a94442', 
+    'RW': '#c97a4a', 'LW': '#c97a4a',
+    'CAM': '#5a8a5a', 
+    'RM': '#5a9a8a', 'LM': '#5a9a8a',
+    'CM': '#5a7a9a', 
+    'DM': '#7a6a9a',
+    'RWB': '#6a7a8a', 'LWB': '#6a7a8a',
+    'RB': '#6a7a8a', 'LB': '#6a7a8a',
+    'CB': '#5a6a7a', 
+    'GK': '#9a8a5a'
+}
+
+# Color functions
+def color_goal_odds(val):
+    if val < 4:
+        return 'color: #4ec9b0; font-weight: bold'  # hot - green
+    elif val < 8:
+        return 'color: #dcdcaa'  # warm - yellow
+    else:
+        return 'color: #888'  # cold - gray
+
+def color_assist_odds(val):
+    if val < 4:
+        return 'color: #4ec9b0; font-weight: bold'  # hot - green
+    elif val < 8:
+        return 'color: #dcdcaa'  # warm - yellow
+    else:
+        return 'color: #888'  # cold - gray
+
+def color_type(val):
+    if val >= 0.6:
+        return 'color: #dc3545'  # scorer - red
+    elif val <= 0.4:
+        return 'color: #17a2b8'  # creator - blue
+    else:
+        return 'color: #6c757d'  # balanced - gray
+
+def color_position(val):
+    bg_color = POS_COLORS.get(val, '#666')
+    return f'background-color: {bg_color}; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px'
+
+# Style the dataframe with left alignment and colors
+styled_df = display_df.style.applymap(
+    color_goal_odds, subset=['⚽ ATG']
+).applymap(
+    color_assist_odds, subset=['🎯 AST']
+).applymap(
+    color_type, subset=['Type']
+).applymap(
+    color_position, subset=['Pos']
+).set_properties(**{
     'text-align': 'left'
 }).set_table_styles([
     {'selector': 'th', 'props': [('text-align', 'left')]},
@@ -273,5 +324,5 @@ styled_df = display_df.style.set_properties(**{
     'Mins': '{:d}'
 })
 
-# Display with st.table (respects styling better)
+# Display with st.write (respects styling better)
 st.write(styled_df.to_html(), unsafe_allow_html=True)
