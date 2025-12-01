@@ -285,7 +285,7 @@ data = data.sort_values(sort_options[sort_by])
 st.markdown(f'<div class="header-box">{selected_team} | Team xG: {team_xg} | {len(data)} players</div>', unsafe_allow_html=True)
 
 # Prepare display dataframe
-display_df = data[['Player', 'Pos', '⚽ ATG', '🎯 AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
+display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', '+/-', 'Min']].reset_index(drop=True)
 
 # Position colors from original
 POS_COLORS = {
@@ -345,12 +345,12 @@ styled_df = display_df.style.applymap(
     {'selector': 'th', 'props': [('text-align', 'left')]},
     {'selector': 'td', 'props': [('text-align', 'left')]}
 ]).format({
-    '⚽ ATG': '{:.2f}',
-    '🎯 AST': '{:.2f}',
+    'ATG': '{:.2f}',
+    'AST': '{:.2f}',
     'xG': '{:.2f}',
     'xA': '{:.2f}',
-    'Type': '{:.2f}',
-    'Mins': '{:d}'
+    '+/-': '{:.2f}',
+    'Min': '{:d}'
 })
 
 # Display with st.write (respects styling better)
