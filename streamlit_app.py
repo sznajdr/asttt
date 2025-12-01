@@ -285,7 +285,13 @@ data = data.sort_values(sort_options[sort_by])
 st.markdown(f'<div class="header-box">{selected_team} | Team xG: {team_xg} | {len(data)} players</div>', unsafe_allow_html=True)
 
 # Prepare display dataframe
-display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'Min']].reset_index(drop=True)
+display_df = data[['Player', 'Pos', '⚽ ATG', '🎯 AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
+display_df = display_df.rename(columns={
+    '⚽ ATG': 'ATG',
+    '🎯 AST': 'AST',
+    'Type': '+/-',
+    'Mins': 'min'
+})
 
 # Position colors from original
 POS_COLORS = {
@@ -336,7 +342,7 @@ styled_df = display_df.style.applymap(
 ).applymap(
     color_assist_odds, subset=['AST']
 ).applymap(
-    color_type, subset=['Type']
+    color_type, subset=['+/-']
 ).applymap(
     color_position, subset=['Pos']
 ).set_properties(**{
@@ -349,8 +355,8 @@ styled_df = display_df.style.applymap(
     'AST': '{:.2f}',
     'xG': '{:.2f}',
     'xA': '{:.2f}',
-    'Type': '{:.2f}',
-    'Min': '{:d}'
+    '+/-': '{:.2f}',
+    'min': '{:d}'
 })
 
 # Display with st.write (respects styling better)
