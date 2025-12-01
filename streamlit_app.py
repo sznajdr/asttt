@@ -187,21 +187,33 @@ st.markdown("""
         font-weight: bold;
         color: #3794ff;
     }
-    /* Left-align all dataframe cells */
-    div[data-testid="stDataFrame"] td {
-        text-align: left !important;
+    /* Style the HTML table */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 14px;
+        background: #1e1e1e;
+        color: #d4d4d4;
     }
-    div[data-testid="stDataFrame"] th {
+    table th {
+        background: #333;
+        padding: 10px 12px;
         text-align: left !important;
+        border-bottom: 2px solid #555;
+        font-weight: 600;
     }
-    [data-testid="stDataFrameResizable"] td {
+    table td {
+        padding: 8px 12px;
         text-align: left !important;
+        border-bottom: 1px solid #3a3a3a;
     }
-    [data-testid="stDataFrameResizable"] th {
-        text-align: left !important;
+    table tr:hover {
+        background: #2d2d2d;
     }
-    .dvn-scroller td {
-        text-align: left !important;
+    /* Hide the index column */
+    table th:first-child, table td:first-child {
+        display: none;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -246,20 +258,20 @@ st.markdown(f'<div class="header-box">{selected_team} | Team xG: {team_xg} | {le
 # Prepare display dataframe
 display_df = data[['Player', 'Pos', '⚽ ATG', '🎯 AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
 
-# Use st.dataframe with column_config for styling
-st.dataframe(
-    display_df,
-    use_container_width=True,
-    hide_index=True,
-    height=600,
-    column_config={
-        "Player": st.column_config.TextColumn("Player", width="medium"),
-        "Pos": st.column_config.TextColumn("Pos", width="small"),
-        "⚽ ATG": st.column_config.NumberColumn("⚽ ATG", format="%.2f", width="small"),
-        "🎯 AST": st.column_config.NumberColumn("🎯 AST", format="%.2f", width="small"),
-        "xG": st.column_config.NumberColumn("xG", format="%.2f", width="small"),
-        "xA": st.column_config.NumberColumn("xA", format="%.2f", width="small"),
-        "Type": st.column_config.NumberColumn("Type", format="%.2f", width="small"),
-        "Mins": st.column_config.NumberColumn("Mins", format="%d", width="small"),
-    }
-)
+# Style the dataframe with left alignment
+styled_df = display_df.style.set_properties(**{
+    'text-align': 'left'
+}).set_table_styles([
+    {'selector': 'th', 'props': [('text-align', 'left')]},
+    {'selector': 'td', 'props': [('text-align', 'left')]}
+]).format({
+    '⚽ ATG': '{:.2f}',
+    '🎯 AST': '{:.2f}',
+    'xG': '{:.2f}',
+    'xA': '{:.2f}',
+    'Type': '{:.2f}',
+    'Mins': '{:d}'
+})
+
+# Display with st.table (respects styling better)
+st.write(styled_df.to_html(), unsafe_allow_html=True)
