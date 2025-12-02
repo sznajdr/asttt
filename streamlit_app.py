@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import streamlit as st
+import streamlit.components.v1 as components
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -564,24 +565,33 @@ df_lineups = load_lineups_data()
 if not df_lineups.empty and selected_team in df_lineups['team'].values:
     st.markdown("---")
     
-    # Additional CSS for tactical profile
-    st.markdown("""
-    <style>
-        .dash-container { font-family: 'Segoe UI', sans-serif; background: #1e1e1e; padding: 15px; color: #d4d4d4; overflow-x: auto; }
-        .header-title { color: #3794ff; font-weight: bold; font-size: 14px; margin-bottom: 10px; }
-        .flex-row { display: flex; gap: 10px; width: 100%; flex-wrap: wrap; }
-        .core-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        .core-table th { text-align: right; color: #666; font-weight: normal; padding-bottom: 4px; border-bottom: 1px solid #444; }
-        .core-table th:first-child { text-align: left; display: table-cell; }
-        .core-table td:first-child { display: table-cell; }
-        .core-table th:nth-child(2) { text-align: center; }
-        
-        @media screen and (max-width: 768px) {
-            .flex-row { flex-direction: column; }
-            .flex-row > div { flex: 1 1 100% !important; min-width: 100% !important; }
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    
     tactical_html = generate_tactical_profile(df_lineups, selected_team)
-    st.markdown(tactical_html, unsafe_allow_html=True)
+    
+    # Wrap in full HTML with styles
+    full_html = f"""
+    <html>
+    <head>
+    <style>
+        body {{ margin: 0; padding: 0; background: #1e1e1e; }}
+        .dash-container {{ font-family: 'Segoe UI', sans-serif; background: #1e1e1e; padding: 15px; color: #d4d4d4; overflow-x: auto; }}
+        .header-title {{ color: #3794ff; font-weight: bold; font-size: 14px; margin-bottom: 10px; }}
+        .flex-row {{ display: flex; gap: 10px; width: 100%; flex-wrap: wrap; }}
+        .core-table {{ width: 100%; border-collapse: collapse; font-size: 11px; }}
+        .core-table th {{ text-align: right; color: #666; font-weight: normal; padding-bottom: 4px; border-bottom: 1px solid #444; }}
+        .core-table th:first-child {{ text-align: left; }}
+        .core-table th:nth-child(2) {{ text-align: center; }}
+        .core-table td {{ padding: 4px 2px; }}
+        
+        @media screen and (max-width: 768px) {{
+            .flex-row {{ flex-direction: column; }}
+            .flex-row > div {{ flex: 1 1 100% !important; min-width: 100% !important; }}
+        }}
+    </style>
+    </head>
+    <body>
+    {tactical_html}
+    </body>
+    </html>
+    """
+    
+    components.html(full_html, height=450, scrolling=True)
