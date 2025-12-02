@@ -34,6 +34,16 @@ POS_SORT = {'ST':1,'CF':2,'RW':3,'LW':4,'CAM':5,'RM':6,'LM':7,'CM':8,'DM':9,'RWB
 
 STATS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_player_season_stats.csv"
 FEATURES_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/player_features.csv"
+LINEUPS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_lineups.csv"
+
+# Tactical profile position colors
+TACTIC_POS_COLORS = {
+    'GK': '#e2b714',  # Gold/Yellow
+    'DEF': '#3794ff', # Blue
+    'MID': '#4ec9b0', # Teal/Green
+    'FWD': '#e056fd', # Purple/Pink
+    'UNK': '#666'
+}
 
 def _parse_market_value(val):
     if pd.isna(val): return 0
@@ -108,6 +118,18 @@ def load_data():
         return df
     except Exception as e:
         st.error(f"Error during processing: {e}")
+        return pd.DataFrame()
+
+@st.cache_data
+def load_lineups_data():
+    try:
+        df_l = pd.read_csv(LINEUPS_URL)
+        cols_to_num = ['rating', 'minutes_played', 'goals_in_match', 'assists_in_match']
+        for c in cols_to_num:
+            if c in df_l.columns:
+                df_l[c] = pd.to_numeric(df_l[c], errors='coerce').fillna(0)
+        return df_l
+    except Exception as e:
         return pd.DataFrame()
 
 # =============================================================================
@@ -361,3 +383,205 @@ styled_df = display_df.style.applymap(
 
 # Display with st.write (respects styling better)
 st.markdown(f'<div class="table-container">{styled_df.to_html()}</div>', unsafe_allow_html=True)
+
+# =============================================================================
+# TACTICAL PROFILE SECTION
+# =============================================================================
+
+def get_simple_pos(pos_name):
+    p = str(pos_name).lower()
+    if 'goalkeeper' in p or 'keeper' in p: return 'GK'
+    if 'defender' in p or 'back' in p: return 'DEF'
+    if 'midfield' in p or 'winger' in p: return 'MID'
+    if 'forward' in p or 'striker' in p: return 'FWD'
+    return 'MID'
+
+def generate_player_list(df_source, is_aggregate=False):
+    html_out = ""
+    
+    if is_aggregate:
+        p_stats = df_source.groupby(['player_name', 'last_name', 'pos_simple']).agg({
+            'match_id': 'nunique',
+            'minutes_played': 'median',
+            'rating': 'mean',
+            'goals_in_match': 'sum',
+            'assists_in_match': 'sum'
+        }).reset_index().sort_values(['match_id', 'rating'], ascending=[False, False])
+    else:
+        p_stats = df_source.sort_values('pos_simple', key=lambda x: x.map({'GK':0, 'DEF':1, 'MID':2, 'FWD':3}))
+
+    for pos_group in ['GK', 'DEF', 'MID', 'FWD']:
+        if is_aggregate:
+            limit = 1 if pos_group == 'GK' else 5
+            group = p_stats[p_stats['pos_simple'] == pos_group].head(limit)
+        else:
+            group = p_stats[p_stats['pos_simple'] == pos_group]
+
+        if group.empty: continue
+        
+        p_list = []
+        for _, p in group.iterrows():
+            stats_parts = []
+            
+            if is_aggregate:
+                stats_parts.append(f"{p['match_id']}x")
+            
+            stats_parts.append(f"{int(p['minutes_played'])}'")
+            stats_parts.append(f"{p['rating']:.1f}")
+
+            if p['goals_in_match'] > 0: 
+                stats_parts.append(f"<span style='color:#4ec9b0; font-weight:bold;'>{int(p['goals_in_match'])}G</span>")
+            if p['assists_in_match'] > 0: 
+                stats_parts.append(f"<span style='color:#4ec9b0; font-weight:bold;'>{int(p['assists_in_match'])}A</span>")
+            
+            stats_str = " <span style='color:#555;'>|</span> ".join(stats_parts)
+            name_display = p['last_name']
+            
+            p_list.append(f"<div style='margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>{name_display} <span style='font-size:10px; color:#888;'>({stats_str})</span></div>")
+        
+        pos_color = TACTIC_POS_COLORS.get(pos_group, '#888')
+        html_out += f"""
+        <div style="margin-bottom: 6px;">
+            <div style="color: {pos_color}; font-weight:bold; font-size: 10px; border-bottom: 1px solid #333; margin-bottom:2px;">{pos_group}</div>
+            { "".join(p_list) }
+        </div>
+        """
+    return html_out
+
+def generate_tactical_profile(df_l, team):
+    df = df_l[df_l['team'] == team].copy()
+    if df.empty:
+        return ""
+    
+    df['pos_simple'] = df['position_name'].apply(get_simple_pos)
+    
+    last_match_id = df['match_id'].max()
+    form_counts = df.groupby('formation')['match_id'].nunique().sort_values(ascending=False)
+    top_formations = form_counts.head(2).index.tolist()
+    
+    # Core table
+    core_df = df[(df['is_starter'] == True) & (df['pos_simple'] != 'GK')]
+    core_stats = core_df.groupby('player_name').agg({
+        'match_id': 'nunique',
+        'minutes_played': 'median',
+        'rating': 'mean',
+        'goals_in_match': 'sum',
+        'assists_in_match': 'sum',
+        'pos_simple': lambda x: x.mode()[0] if not x.mode().empty else 'UNK'
+    }).reset_index()
+    core_stats = core_stats.rename(columns={'match_id': 'starts'})
+    core_stats = core_stats.sort_values(['starts', 'goals_in_match', 'rating'], ascending=[False, False, False]).head(10)
+    
+    cards_html = ""
+    
+    # Last match card
+    df_last = df[(df['match_id'] == last_match_id) & (df['is_starter'] == True)]
+    if not df_last.empty:
+        last_form = df_last['formation'].iloc[0]
+        last_rat = df_last['rating'].mean()
+        player_html = generate_player_list(df_last, is_aggregate=False)
+        
+        cards_html += f"""
+        <div style="flex: 1; background: #252525; border-radius: 4px; padding: 10px; min-width: 180px; border:1px solid #333;">
+            <div style="border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="font-weight: bold; color: #fff; font-size: 13px;">LAST MATCH</span>
+                    <div style="font-size:10px; color:#888;">{last_form}</div>
+                </div>
+                <div style="background: #333; color: #aaa; padding: 2px 5px; border-radius: 3px; font-size: 11px; font-weight:bold;">
+                    {last_rat:.1f} Rat
+                </div>
+            </div>
+            <div style="font-size: 11px; line-height: 1.3; color: #ccc;">{player_html}</div>
+        </div>
+        """
+    
+    # Formation cards
+    for form in top_formations:
+        df_form = df[(df['formation'] == form) & (df['is_starter'] == True)]
+        count_used = form_counts[form]
+        avg_rat = df_form.groupby('match_id')['rating'].mean().mean()
+        player_html = generate_player_list(df_form, is_aggregate=True)
+        
+        cards_html += f"""
+        <div style="flex: 1; background: #252525; border-radius: 4px; padding: 10px; min-width: 180px; border:1px solid #333;">
+            <div style="border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="font-weight: bold; color: #fff; font-size: 13px;">{form}</span>
+                    <div style="font-size:10px; color:#888;">Used {count_used} times</div>
+                </div>
+                <div style="background: #333; color: #4ec9b0; padding: 2px 5px; border-radius: 3px; font-size: 11px; font-weight:bold;">
+                    {avg_rat:.1f} Rat
+                </div>
+            </div>
+            <div style="font-size: 11px; line-height: 1.3; color: #ccc;">{player_html}</div>
+        </div>
+        """
+    
+    # Core table rows
+    core_rows = ""
+    for _, row in core_stats.iterrows():
+        g_val = f"<span style='color:#4ec9b0; font-weight:bold;'>{int(row['goals_in_match'])}</span>" if row['goals_in_match'] > 0 else "<span style='color:#444;'>-</span>"
+        a_val = f"<span style='color:#4ec9b0; font-weight:bold;'>{int(row['assists_in_match'])}</span>" if row['assists_in_match'] > 0 else "<span style='color:#444;'>-</span>"
+        p_color = TACTIC_POS_COLORS.get(row['pos_simple'], '#888')
+        pos_badge = f"<span style='color:{p_color}; font-weight:bold;'>{row['pos_simple']}</span>"
+        
+        core_rows += f"""
+        <tr style="border-bottom: 1px solid #333; height: 22px;">
+            <td style="color:#ddd; font-weight:500;">{row['player_name']}</td>
+            <td style="text-align:center; font-size:10px;">{pos_badge}</td>
+            <td style="text-align:right;">{int(row['starts'])}</td>
+            <td style="text-align:right; color:#888;">{int(row['minutes_played'])}'</td>
+            <td style="text-align:right; color:#aaa;">{row['rating']:.1f}</td>
+            <td style="text-align:right;">{g_val}</td>
+            <td style="text-align:right;">{a_val}</td>
+        </tr>
+        """
+    
+    html = f"""
+    <div class="dash-container">
+        <div class="header-title">{team} - Tactical Profile</div>
+        <div class="flex-row">
+            {cards_html}
+            <div style="flex: 0 0 350px; background: #222; padding: 10px; border-radius: 4px; border:1px solid #333;">
+                <div style="color: #3794ff; font-weight: bold; font-size: 12px; margin-bottom: 8px; display:flex; justify-content:space-between;">
+                    <span>MOST FREQUENT STARTERS</span>
+                    <span style="font-size:10px; color:#666;">(NO GK)</span>
+                </div>
+                <table class="core-table">
+                    <tr><th>Player</th><th>Pos</th><th>St</th><th>Min</th><th>Rat</th><th>G</th><th>A</th></tr>
+                    {core_rows}
+                </table>
+            </div>
+        </div>
+    </div>
+    """
+    return html
+
+# Load lineups and display tactical profile
+df_lineups = load_lineups_data()
+
+if not df_lineups.empty and selected_team in df_lineups['team'].values:
+    st.markdown("---")
+    
+    # Additional CSS for tactical profile
+    st.markdown("""
+    <style>
+        .dash-container { font-family: 'Segoe UI', sans-serif; background: #1e1e1e; padding: 15px; color: #d4d4d4; overflow-x: auto; }
+        .header-title { color: #3794ff; font-weight: bold; font-size: 14px; margin-bottom: 10px; }
+        .flex-row { display: flex; gap: 10px; width: 100%; flex-wrap: wrap; }
+        .core-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .core-table th { text-align: right; color: #666; font-weight: normal; padding-bottom: 4px; border-bottom: 1px solid #444; }
+        .core-table th:first-child { text-align: left; display: table-cell; }
+        .core-table td:first-child { display: table-cell; }
+        .core-table th:nth-child(2) { text-align: center; }
+        
+        @media screen and (max-width: 768px) {
+            .flex-row { flex-direction: column; }
+            .flex-row > div { flex: 1 1 100% !important; min-width: 100% !important; }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    tactical_html = generate_tactical_profile(df_lineups, selected_team)
+    st.markdown(tactical_html, unsafe_allow_html=True)
