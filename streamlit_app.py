@@ -308,7 +308,7 @@ data = data.sort_values(sort_options[sort_by])
 st.markdown(f'<div class="header-box">{selected_team} | {team_xg} | {len(data)} players</div>', unsafe_allow_html=True)
 
 # Prepare display dataframe
-display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
+display_df = data[['Player', 'Pos', '⚽ ATG', '🎯 AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
 display_df = display_df.rename(columns={
     '⚽ ATG': 'ATG',
     '🎯 AST': 'AST',
