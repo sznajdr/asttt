@@ -588,3 +588,89 @@ if not df_lineups.empty and selected_team in df_lineups['team'].values:
     """
     
     components.html(full_html, height=450, scrolling=True)
+
+# =============================================================================
+# SUSPENSIONS, INJURIES & RISK TABLE
+# =============================================================================
+
+FOOTBALL_DATA_URL = "https://raw.githubusercontent.com/sznajdr/asttt/refs/heads/main/football_data_complete_2025-12-03.csv"
+
+@st.cache_data
+def load_football_status_data():
+    try:
+        df = pd.read_csv(FOOTBALL_DATA_URL)
+        # Keep only the columns we want
+        cols_to_keep = ['competition', 'club', 'player', 'position', 'reason', 'matches_missed', 
+                        'age', 'injury', 'yellow_cards', 'injured_since', 'injured_until', 
+                        'data_type', 'since', 'until']
+        existing_cols = [c for c in cols_to_keep if c in df.columns]
+        return df[existing_cols]
+    except Exception as e:
+        st.error(f"Failed to load football status data: {e}")
+        return pd.DataFrame()
+
+st.markdown("---")
+
+# Load the data
+df_status = load_football_status_data()
+
+if not df_status.empty:
+    # Filter controls
+    filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
+    
+    with filter_col1:
+        competitions = sorted(df_status['competition'].dropna().unique().tolist())
+        selected_competitions = st.multiselect("Competition", competitions, key="filter_competition")
+    
+    with filter_col2:
+        positions = sorted(df_status['position'].dropna().unique().tolist())
+        selected_positions = st.multiselect("Position", positions, key="filter_position")
+    
+    with filter_col3:
+        reasons = sorted(df_status['reason'].dropna().unique().tolist())
+        selected_reasons = st.multiselect("Reason", reasons, key="filter_reason")
+    
+    with filter_col4:
+        data_types = sorted(df_status['data_type'].dropna().unique().tolist())
+        selected_types = st.multiselect("Type", data_types, key="filter_type")
+    
+    # Apply filters
+    df_filtered = df_status.copy()
+    
+    if selected_competitions:
+        df_filtered = df_filtered[df_filtered['competition'].isin(selected_competitions)]
+    if selected_positions:
+        df_filtered = df_filtered[df_filtered['position'].isin(selected_positions)]
+    if selected_reasons:
+        df_filtered = df_filtered[df_filtered['reason'].isin(selected_reasons)]
+    if selected_types:
+        df_filtered = df_filtered[df_filtered['data_type'].isin(selected_types)]
+    
+    # Display count
+    st.markdown(f'<div class="header-box">Suspensions & Injuries | {len(df_filtered)} records</div>', unsafe_allow_html=True)
+    
+    # Style for the status table
+    def color_data_type(val):
+        if val == 'suspensions':
+            return 'color: #dc3545; font-weight: bold'  # red
+        elif val == 'risk_of_suspension':
+            return 'color: #ffc107; font-weight: bold'  # yellow
+        elif val == 'injuries':
+            return 'color: #17a2b8; font-weight: bold'  # blue
+        return 'color: #888'
+    
+    # Prepare display
+    display_status_df = df_filtered.reset_index(drop=True)
+    
+    # Style the dataframe
+    styled_status_df = display_status_df.style.applymap(
+        color_data_type, subset=['data_type']
+    ).set_properties(**{
+        'text-align': 'left'
+    }).set_table_styles([
+        {'selector': 'th', 'props': [('text-align', 'left')]},
+        {'selector': 'td', 'props': [('text-align', 'left')]}
+    ])
+    
+    # Display table
+    st.markdown(f'<div class="table-container">{styled_status_df.to_html()}</div>', unsafe_allow_html=True)
