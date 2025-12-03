@@ -307,6 +307,7 @@ st.markdown(f'<div class="header-box">{selected_team} | {team_xg}</div>', unsafe
 
 # Prepare display dataframe
 display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
+display_df = display_df.rename(columns={'Type': '+/-', 'Mins': 'min'})
 
 # Position colors from original
 POS_COLORS = {
