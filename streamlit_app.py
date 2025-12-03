@@ -194,7 +194,7 @@ def predict_odds(df, team, team_xg=1.5):
 # STREAMLIT UI
 # =============================================================================
 
-st.set_page_config(page_title="Player Odds Predictor", layout="wide")
+st.set_page_config(page_title=" ", layout="wide")
 
 # Dark theme CSS
 st.markdown("""
@@ -291,8 +291,8 @@ with col2:
     team_xg = st.slider("Team xG", min_value=0.5, max_value=4.0, value=1.5, step=0.1)
 
 with col3:
-    sort_options = {'Goal Odds': 'goal_odds', 'Assist Odds': 'assist_odds', 'Position': 'pos_sort'}
-    sort_by = st.selectbox("Sort by", list(sort_options.keys()))
+    sort_options = {'ATG': 'goal_odds', 'AST': 'assist_odds'}
+    sort_by = st.selectbox(" ", list(sort_options.keys()))
 
 # Get predictions
 data = predict_odds(df, selected_team, team_xg)
@@ -305,10 +305,10 @@ if data.empty:
 data = data.sort_values(sort_options[sort_by])
 
 # Header
-st.markdown(f'<div class="header-box">{selected_team} | Team xG: {team_xg} | {len(data)} players</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="header-box">{selected_team} | {team_xg} | {len(data)} players</div>', unsafe_allow_html=True)
 
 # Prepare display dataframe
-display_df = data[['Player', 'Pos', '⚽ ATG', '🎯 AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
+display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
 display_df = display_df.rename(columns={
     '⚽ ATG': 'ATG',
     '🎯 AST': 'AST',
@@ -541,13 +541,13 @@ def generate_tactical_profile(df_l, team):
     
     html = f"""
     <div class="dash-container">
-        <div class="header-title">{team} - Tactical Profile</div>
+        <div class="header-title">{team}  </div>
         <div class="flex-row">
             {cards_html}
             <div style="flex: 0 0 350px; background: #222; padding: 10px; border-radius: 4px; border:1px solid #333;">
                 <div style="color: #3794ff; font-weight: bold; font-size: 12px; margin-bottom: 8px; display:flex; justify-content:space-between;">
-                    <span>MOST FREQUENT STARTERS</span>
-                    <span style="font-size:10px; color:#666;">(NO GK)</span>
+                    <span> </span>
+                    <span style="font-size:10px; color:#666;"> </span>
                 </div>
                 <table class="core-table">
                     <tr><th>Player</th><th>Pos</th><th>St</th><th>Min</th><th>Rat</th><th>G</th><th>A</th></tr>
