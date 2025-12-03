@@ -271,28 +271,26 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Load data
-with st.spinner("Loading data..."):
+with st.spinner(""):
     df = load_data()
 
 if df.empty:
     st.error("No data loaded. Check the CSV URLs.")
     st.stop()
 
-st.success(f"Loaded {len(df)} players")
-
 # Controls
 col1, col2, col3 = st.columns([2, 3, 2])
 
 with col1:
     teams = sorted(df['team'].unique())
-    selected_team = st.selectbox("Team", teams)
+    selected_team = st.selectbox(" ", teams, label_visibility="collapsed")
 
 with col2:
-    team_xg = st.slider("Team xG", min_value=0.5, max_value=4.0, value=1.5, step=0.1)
+    team_xg = st.slider(" ", min_value=0.5, max_value=4.0, value=1.5, step=0.1, label_visibility="collapsed")
 
 with col3:
     sort_options = {'ATG': 'goal_odds', 'AST': 'assist_odds'}
-    sort_by = st.selectbox(" ", list(sort_options.keys()))
+    sort_by = st.selectbox("  ", list(sort_options.keys()), label_visibility="collapsed")
 
 # Get predictions
 data = predict_odds(df, selected_team, team_xg)
@@ -305,16 +303,10 @@ if data.empty:
 data = data.sort_values(sort_options[sort_by])
 
 # Header
-st.markdown(f'<div class="header-box">{selected_team} | {team_xg} | {len(data)} players</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="header-box">{selected_team} | {team_xg}</div>', unsafe_allow_html=True)
 
 # Prepare display dataframe
-display_df = data[['Player', 'Pos', '⚽ ATG', '🎯 AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
-display_df = display_df.rename(columns={
-    'ATG': 'ATG',
-    'AST': 'AST',
-    'Type': '+/-',
-    'Mins': 'min'
-})
+display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
 
 # Position colors from original
 POS_COLORS = {
