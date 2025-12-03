@@ -178,8 +178,8 @@ def predict_odds(df, team, team_xg=1.5):
         results.append({
             'Player': p.get('player_name', 'Unknown'),
             'Pos': pos,
-            '⚽ ATG': round(odds_g, 2),
-            '🎯 AST': round(odds_a, 2),
+            'ATG': round(odds_g, 2),
+            'AST': round(odds_a, 2),
             'xG': round(xg_p90, 2),
             'xA': round(xa_p90, 2),
             'Type': round(scorer_ratio, 2),
@@ -310,8 +310,8 @@ st.markdown(f'<div class="header-box">{selected_team} | {team_xg} | {len(data)} 
 # Prepare display dataframe
 display_df = data[['Player', 'Pos', '⚽ ATG', '🎯 AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
 display_df = display_df.rename(columns={
-    '⚽ ATG': 'ATG',
-    '🎯 AST': 'AST',
+    'ATG': 'ATG',
+    'AST': 'AST',
     'Type': '+/-',
     'Mins': 'min'
 })
