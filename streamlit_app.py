@@ -479,7 +479,7 @@ def generate_tactical_profile(df_l, team):
         <div style="flex: 1; background: #252525; border-radius: 4px; padding: 10px; min-width: 180px; border:1px solid #333;">
             <div style="border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <span style="font-weight: bold; color: #fff; font-size: 13px;">LAST MATCH</span>
+                    <span style="font-weight: bold; color: #fff; font-size: 13px;"> </span>
                     <div style="font-size:10px; color:#888;">{last_form}</div>
                 </div>
                 <div style="background: #333; color: #aaa; padding: 2px 5px; border-radius: 3px; font-size: 11px; font-weight:bold;">
