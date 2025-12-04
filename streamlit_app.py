@@ -309,15 +309,15 @@ display_df = display_df.rename(columns={'Type': '+/-', 'Mins': 'min'})
 
 # Position colors from original
 POS_COLORS = {
-    'ST': '#a94442', 'CF': '#a94442', 
-    'RW': '#c97a4a', 'LW': '#c97a4a',
+    'ST': '#922725', 'CF': '#922725', 
+    'RW': '#8D4E28', 'LW': '#8D4E28',
     'CAM': '#5a8a5a', 
-    'RM': '#5a9a8a', 'LM': '#5a9a8a',
-    'CM': '#5a7a9a', 
-    'DM': '#7a6a9a',
+    'RM': '#237023', 'LM': '#237023',
+    'CM': '#0B5E0B', 
+    'DM': '#167D63',
     'RWB': '#6a7a8a', 'LWB': '#6a7a8a',
-    'RB': '#6a7a8a', 'LB': '#6a7a8a',
-    'CB': '#5a6a7a', 
+    'RB': '#07166D', 'LB': '#07166D',
+    'CB': '#14316F', 
     'GK': '#9a8a5a'
 }
 
