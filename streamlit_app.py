@@ -624,7 +624,8 @@ if not df_status.empty:
     
     with filter_col2:
         positions = sorted(df_status['position'].dropna().unique().tolist())
-        selected_positions = st.multiselect("Position", positions, key="filter_position")
+        default_positions = [p for p in ['Centre_forward', 'Attacking Midfield', 'Left Winger', 'Right Winger'] if p in positions]
+        selected_positions = st.multiselect("Position", positions, default=default_positions, key="filter_position")
     
     with filter_col3:
         reasons = sorted(df_status['reason'].dropna().unique().tolist())
@@ -632,7 +633,8 @@ if not df_status.empty:
     
     with filter_col4:
         data_types = sorted(df_status['data_type'].dropna().unique().tolist())
-        selected_types = st.multiselect("Type", data_types, key="filter_type")
+        default_types = ['suspensions'] if 'suspensions' in data_types else []
+        selected_types = st.multiselect("Type", data_types, default=default_types, key="filter_type")
     
     # Apply filters
     df_filtered = df_status.copy()
