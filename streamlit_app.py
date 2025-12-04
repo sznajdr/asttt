@@ -618,21 +618,21 @@ if not df_status.empty:
     
     with filter_col1:
         competitions = sorted(df_status['competition'].dropna().unique().tolist())
-        selected_competitions = st.multiselect("Competition", competitions, key="filter_competition")
+        selected_competitions = st.multiselect(" ", competitions, key="filter_competition")
     
     with filter_col2:
         positions = sorted(df_status['position'].dropna().unique().tolist())
         default_positions = [p for p in ['Centre-Forward', 'Attacking Midfield', 'Right Winger', 'Left Winger'] if p in positions]
-        selected_positions = st.multiselect("Position", positions, default=default_positions, key="filter_position")
+        selected_positions = st.multiselect(" ", positions, default=default_positions, key="filter_position")
     
     with filter_col3:
         reasons = sorted(df_status['reason'].dropna().unique().tolist())
-        selected_reasons = st.multiselect("Reason", reasons, key="filter_reason")
+        selected_reasons = st.multiselect(" ", reasons, key="filter_reason")
     
     with filter_col4:
         data_types = sorted(df_status['data_type'].dropna().unique().tolist())
         default_types = ['suspensions'] if 'suspensions' in data_types else []
-        selected_types = st.multiselect("Type", data_types, default=default_types, key="filter_type")
+        selected_types = st.multiselect(" ", data_types, default=default_types, key="filter_type")
     
     # Apply filters
     df_filtered = df_status.copy()
