@@ -302,8 +302,6 @@ if data.empty:
 # Sort data
 data = data.sort_values(sort_options[sort_by])
 
-# Header
-st.markdown(f'<div class="header-box">{selected_team} | {team_xg}</div>', unsafe_allow_html=True)
 
 # Prepare display dataframe
 display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
