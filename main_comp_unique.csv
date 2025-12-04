@@ -1,0 +1,101 @@
+comp_name,region,country,comp_url,sperrenausfaelle_url
+Premier League,Europe,England,https://www.transfermarkt.com/premier-league/startseite/wettbewerb/GB1,https://www.transfermarkt.com/premier-league/sperrenausfaelle/wettbewerb/GB1
+LaLiga,Europe,Spain,https://www.transfermarkt.com/laliga/startseite/wettbewerb/ES1,https://www.transfermarkt.com/laliga/sperrenausfaelle/wettbewerb/ES1
+Serie A,Europe,Italy,https://www.transfermarkt.com/serie-a/startseite/wettbewerb/IT1,https://www.transfermarkt.com/serie-a/sperrenausfaelle/wettbewerb/IT1
+Bundesliga,Europe,Germany,https://www.transfermarkt.com/bundesliga/startseite/wettbewerb/L1,https://www.transfermarkt.com/bundesliga/sperrenausfaelle/wettbewerb/L1
+Ligue 1,Europe,France,https://www.transfermarkt.com/ligue-1/startseite/wettbewerb/FR1,https://www.transfermarkt.com/ligue-1/sperrenausfaelle/wettbewerb/FR1
+Liga Portugal,Europe,Portugal,https://www.transfermarkt.com/liga-portugal/startseite/wettbewerb/PO1,https://www.transfermarkt.com/liga-portugal/sperrenausfaelle/wettbewerb/PO1
+Eredivisie,Europe,Netherlands,https://www.transfermarkt.com/eredivisie/startseite/wettbewerb/NL1,https://www.transfermarkt.com/eredivisie/sperrenausfaelle/wettbewerb/NL1
+Süper Lig,Europe,Türkiye,https://www.transfermarkt.com/super-lig/startseite/wettbewerb/TR1,https://www.transfermarkt.com/super-lig/sperrenausfaelle/wettbewerb/TR1
+Jupiler Pro League,Europe,Belgium,https://www.transfermarkt.com/jupiler-pro-league/startseite/wettbewerb/BE1,https://www.transfermarkt.com/jupiler-pro-league/sperrenausfaelle/wettbewerb/BE1
+Premier Liga,Europe,Russia,https://www.transfermarkt.com/premier-liga/startseite/wettbewerb/RU1,https://www.transfermarkt.com/premier-liga/sperrenausfaelle/wettbewerb/RU1
+Super League 1,Europe,Greece,https://www.transfermarkt.com/super-league-1/startseite/wettbewerb/GR1,https://www.transfermarkt.com/super-league-1/sperrenausfaelle/wettbewerb/GR1
+Super League,Europe,Switzerland,https://www.transfermarkt.com/super-league/startseite/wettbewerb/C1,https://www.transfermarkt.com/super-league/sperrenausfaelle/wettbewerb/C1
+Premier Liga,Europe,Ukraine,https://www.transfermarkt.com/premier-liga/startseite/wettbewerb/UKR1,https://www.transfermarkt.com/premier-liga/sperrenausfaelle/wettbewerb/UKR1
+Bundesliga,Europe,Austria,https://www.transfermarkt.com/bundesliga/startseite/wettbewerb/A1,https://www.transfermarkt.com/bundesliga/sperrenausfaelle/wettbewerb/A1
+Chance Liga,Europe,Czech Republic,https://www.transfermarkt.com/chance-liga/startseite/wettbewerb/TS1,https://www.transfermarkt.com/chance-liga/sperrenausfaelle/wettbewerb/TS1
+Superliga,Europe,Denmark,https://www.transfermarkt.com/superliga/startseite/wettbewerb/DK1,https://www.transfermarkt.com/superliga/sperrenausfaelle/wettbewerb/DK1
+Premiership,Europe,Scotland,https://www.transfermarkt.com/scottish-premiership/startseite/wettbewerb/SC1,https://www.transfermarkt.com/scottish-premiership/sperrenausfaelle/wettbewerb/SC1
+Ekstraklasa,Europe,Poland,https://www.transfermarkt.com/pko-bp-ekstraklasa/startseite/wettbewerb/PL1,https://www.transfermarkt.com/pko-bp-ekstraklasa/sperrenausfaelle/wettbewerb/PL1
+Super liga Srbije,Europe,Serbia,https://www.transfermarkt.com/super-liga-srbije/startseite/wettbewerb/SER1,https://www.transfermarkt.com/super-liga-srbije/sperrenausfaelle/wettbewerb/SER1
+Eliteserien,Europe,Norway,https://www.transfermarkt.com/eliteserien/startseite/wettbewerb/NO1,https://www.transfermarkt.com/eliteserien/sperrenausfaelle/wettbewerb/NO1
+Allsvenskan,Europe,Sweden,https://www.transfermarkt.com/allsvenskan/startseite/wettbewerb/SE1,https://www.transfermarkt.com/allsvenskan/sperrenausfaelle/wettbewerb/SE1
+SuperLiga,Europe,Romania,https://www.transfermarkt.com/superliga/startseite/wettbewerb/RO1,https://www.transfermarkt.com/superliga/sperrenausfaelle/wettbewerb/RO1
+SuperSport HNL,Europe,Croatia,https://www.transfermarkt.com/supersport-hnl/startseite/wettbewerb/KR1,https://www.transfermarkt.com/supersport-hnl/sperrenausfaelle/wettbewerb/KR1
+efbet Liga,Europe,Bulgaria,https://www.transfermarkt.com/efbet-liga/startseite/wettbewerb/BU1,https://www.transfermarkt.com/efbet-liga/sperrenausfaelle/wettbewerb/BU1
+NB I.,Europe,Hungary,https://www.transfermarkt.com/nemzeti-bajnoksag/startseite/wettbewerb/UNG1,https://www.transfermarkt.com/nemzeti-bajnoksag/sperrenausfaelle/wettbewerb/UNG1
+Saudi Pro League,Asia,Saudi Arabia,https://www.transfermarkt.com/saudi-pro-league/startseite/wettbewerb/SA1,https://www.transfermarkt.com/saudi-pro-league/sperrenausfaelle/wettbewerb/SA1
+UAE Pro League,Asia,United Arab Emirates,https://www.transfermarkt.com/uae-pro-league/startseite/wettbewerb/UAE1,https://www.transfermarkt.com/uae-pro-league/sperrenausfaelle/wettbewerb/UAE1
+Stars League,Asia,Qatar,https://www.transfermarkt.com/qatar-stars-league/startseite/wettbewerb/QSL,https://www.transfermarkt.com/qatar-stars-league/sperrenausfaelle/wettbewerb/QSL
+J1 League,Asia,Japan,https://www.transfermarkt.com/j1-league/startseite/wettbewerb/JAP1,https://www.transfermarkt.com/j1-league/sperrenausfaelle/wettbewerb/JAP1
+K League 1,Asia,"Korea, South",https://www.transfermarkt.com/k-league-1/startseite/wettbewerb/RSK1,https://www.transfermarkt.com/k-league-1/sperrenausfaelle/wettbewerb/RSK1
+Persian Gulf Pro League,Asia,Iran,https://www.transfermarkt.com/persian-gulf-pro-league/startseite/wettbewerb/IRN1,https://www.transfermarkt.com/persian-gulf-pro-league/sperrenausfaelle/wettbewerb/IRN1
+Super League,Asia,China,https://www.transfermarkt.com/chinese-super-league/startseite/wettbewerb/CSL,https://www.transfermarkt.com/chinese-super-league/sperrenausfaelle/wettbewerb/CSL
+A-League Men,Asia,Australia,https://www.transfermarkt.com/a-league-men/startseite/wettbewerb/AUS1,https://www.transfermarkt.com/a-league-men/sperrenausfaelle/wettbewerb/AUS1
+Superliga,Asia,Uzbekistan,https://www.transfermarkt.com/ozbekiston-superligasi/startseite/wettbewerb/UZ1,https://www.transfermarkt.com/ozbekiston-superligasi/sperrenausfaelle/wettbewerb/UZ1
+Iraq Stars League,Asia,Iraq,https://www.transfermarkt.com/iraq-stars-league/startseite/wettbewerb/IRQ1,https://www.transfermarkt.com/iraq-stars-league/sperrenausfaelle/wettbewerb/IRQ1
+Thai League,Asia,Thailand,https://www.transfermarkt.com/thai-league/startseite/wettbewerb/THA1,https://www.transfermarkt.com/thai-league/sperrenausfaelle/wettbewerb/THA1
+Liga 1,Asia,Indonesia,https://www.transfermarkt.com/liga-1-indonesia/startseite/wettbewerb/IN1L,https://www.transfermarkt.com/liga-1-indonesia/sperrenausfaelle/wettbewerb/IN1L
+Indian Super League,Asia,India,https://www.transfermarkt.com/indian-super-league/startseite/wettbewerb/IND1,https://www.transfermarkt.com/indian-super-league/sperrenausfaelle/wettbewerb/IND1
+Super League,Asia,Malaysia,https://www.transfermarkt.com/malaysia-super-league/startseite/wettbewerb/MYS1,https://www.transfermarkt.com/malaysia-super-league/sperrenausfaelle/wettbewerb/MYS1
+V.League 1,Asia,Vietnam,https://www.transfermarkt.com/v-league-1/startseite/wettbewerb/VIE1,https://www.transfermarkt.com/v-league-1/sperrenausfaelle/wettbewerb/VIE1
+Oman Pro League,Asia,Oman,https://www.transfermarkt.com/oman-professional-league/startseite/wettbewerb/OM1L,https://www.transfermarkt.com/oman-professional-league/sperrenausfaelle/wettbewerb/OM1L
+Leb. Premier League,Asia,Lebanon,https://www.transfermarkt.com/lebanese-premier-league/startseite/wettbewerb/LIB1,https://www.transfermarkt.com/lebanese-premier-league/sperrenausfaelle/wettbewerb/LIB1
+Hong Kong Premier League,Asia,Hongkong,https://www.transfermarkt.com/hong-kong-premier-league/startseite/wettbewerb/HGKG,https://www.transfermarkt.com/hong-kong-premier-league/sperrenausfaelle/wettbewerb/HGKG
+National League - North,Asia,New Zealand,https://www.transfermarkt.com/national-league-north/startseite/wettbewerb/NNL1,https://www.transfermarkt.com/national-league-north/sperrenausfaelle/wettbewerb/NNL1
+Premier League,Asia,Singapore,https://www.transfermarkt.com/singapore-premier-league/startseite/wettbewerb/SIN1,https://www.transfermarkt.com/singapore-premier-league/sperrenausfaelle/wettbewerb/SIN1
+Bangladesh PL,Asia,Bangladesh,https://www.transfermarkt.com/bangladesh-premier-league/startseite/wettbewerb/BGD1,https://www.transfermarkt.com/bangladesh-premier-league/sperrenausfaelle/wettbewerb/BGD1
+Myanmar National League,Asia,Myanmar,https://www.transfermarkt.com/myanmar-national-league/startseite/wettbewerb/MYA1,https://www.transfermarkt.com/myanmar-national-league/sperrenausfaelle/wettbewerb/MYA1
+Fiji Premier League,Asia,Fiji,https://www.transfermarkt.com/fiji-premier-league/startseite/wettbewerb/FIJ1,https://www.transfermarkt.com/fiji-premier-league/sperrenausfaelle/wettbewerb/FIJ1
+C. Premier League,Asia,Cambodia,https://www.transfermarkt.com/cambodian-premier-league/startseite/wettbewerb/KHM1,https://www.transfermarkt.com/cambodian-premier-league/sperrenausfaelle/wettbewerb/KHM1
+PFL,Asia,Philippines,https://www.transfermarkt.com/philippines-football-league/startseite/wettbewerb/PFL1,https://www.transfermarkt.com/philippines-football-league/sperrenausfaelle/wettbewerb/PFL1
+Série A,Americas,Brazil,https://www.transfermarkt.com/campeonato-brasileiro-serie-a/startseite/wettbewerb/BRA1,https://www.transfermarkt.com/campeonato-brasileiro-serie-a/sperrenausfaelle/wettbewerb/BRA1
+MLS,Americas,United States,https://www.transfermarkt.com/major-league-soccer/startseite/wettbewerb/MLS1,https://www.transfermarkt.com/major-league-soccer/sperrenausfaelle/wettbewerb/MLS1
+Torneo Apertura ,Americas,Argentina,https://www.transfermarkt.com/torneo-apertura/startseite/wettbewerb/ARG1,https://www.transfermarkt.com/torneo-apertura/sperrenausfaelle/wettbewerb/ARG1
+Torneo Clausura,Americas,Argentina,https://www.transfermarkt.com/torneo-clausura/startseite/wettbewerb/ARGC,https://www.transfermarkt.com/torneo-clausura/sperrenausfaelle/wettbewerb/ARGC
+Liga MX Clausura,Americas,Mexico,https://www.transfermarkt.com/liga-mx-clausura/startseite/wettbewerb/MEX1,https://www.transfermarkt.com/liga-mx-clausura/sperrenausfaelle/wettbewerb/MEX1
+Liga MX Apertura,Americas,Mexico,https://www.transfermarkt.com/liga-mx-apertura/startseite/wettbewerb/MEXA,https://www.transfermarkt.com/liga-mx-apertura/sperrenausfaelle/wettbewerb/MEXA
+Liguilla Clausura,Americas,Mexico,https://www.transfermarkt.com/liguilla-clausura/startseite/wettbewerb/POME,https://www.transfermarkt.com/liguilla-clausura/sperrenausfaelle/wettbewerb/POME
+Liguilla Apertura,Americas,Mexico,https://www.transfermarkt.com/liguilla-apertura/startseite/wettbewerb/POMX,https://www.transfermarkt.com/liguilla-apertura/sperrenausfaelle/wettbewerb/POMX
+Liga Dimayor I,Americas,Colombia,https://www.transfermarkt.com/liga-dimayor-apertura/startseite/wettbewerb/COLP,https://www.transfermarkt.com/liga-dimayor-apertura/sperrenausfaelle/wettbewerb/COLP
+Liga Primera,Americas,Chile,https://www.transfermarkt.com/liga-de-primera/startseite/wettbewerb/CLPD,https://www.transfermarkt.com/liga-de-primera/sperrenausfaelle/wettbewerb/CLPD
+LigaPro Serie A,Americas,Ecuador,https://www.transfermarkt.com/ligapro-serie-a/startseite/wettbewerb/EC1N,https://www.transfermarkt.com/ligapro-serie-a/sperrenausfaelle/wettbewerb/EC1N
+Liga AUF Apertura,Americas,Uruguay,https://www.transfermarkt.com/liga-auf-apertura/startseite/wettbewerb/URU1,https://www.transfermarkt.com/liga-auf-apertura/sperrenausfaelle/wettbewerb/URU1
+Liga 1 Apertura,Americas,Peru,https://www.transfermarkt.com/liga-1-apertura/startseite/wettbewerb/TDeA,https://www.transfermarkt.com/liga-1-apertura/sperrenausfaelle/wettbewerb/TDeA
+Primera División Apertura,Americas,Paraguay,https://www.transfermarkt.com/primera-division-apertura/startseite/wettbewerb/PR1A,https://www.transfermarkt.com/primera-division-apertura/sperrenausfaelle/wettbewerb/PR1A
+Primera División Clausura,Americas,Paraguay,https://www.transfermarkt.com/primera-division-clausura/startseite/wettbewerb/PR1C,https://www.transfermarkt.com/primera-division-clausura/sperrenausfaelle/wettbewerb/PR1C
+División Profesional Apertura,Americas,Bolivia,https://www.transfermarkt.com/division-profesional-apertura/startseite/wettbewerb/B1AP,https://www.transfermarkt.com/division-profesional-apertura/sperrenausfaelle/wettbewerb/B1AP
+Liga FUTVE Apertura,Americas,Venezuela,https://www.transfermarkt.com/liga-futve-apertura/startseite/wettbewerb/VZ1A,https://www.transfermarkt.com/liga-futve-apertura/sperrenausfaelle/wettbewerb/VZ1A
+Liga FUTVE Clausura,Americas,Venezuela,https://www.transfermarkt.com/liga-futve-clausura/startseite/wettbewerb/VZ1C,https://www.transfermarkt.com/liga-futve-clausura/sperrenausfaelle/wettbewerb/VZ1C
+Primera División Apertura,Americas,Costa Rica,https://www.transfermarkt.com/primera-division-apertura/startseite/wettbewerb/CRPD,https://www.transfermarkt.com/primera-division-apertura/sperrenausfaelle/wettbewerb/CRPD
+Primera División Clausura,Americas,Costa Rica,https://www.transfermarkt.com/primera-division-clausura/startseite/wettbewerb/PDV1,https://www.transfermarkt.com/primera-division-clausura/sperrenausfaelle/wettbewerb/PDV1
+Liga Nacional Apertura,Americas,Honduras,https://www.transfermarkt.com/liga-nacional-apertura/startseite/wettbewerb/HO1A,https://www.transfermarkt.com/liga-nacional-apertura/sperrenausfaelle/wettbewerb/HO1A
+Liga Nacional Clausura,Americas,Honduras,https://www.transfermarkt.com/liga-nacional-clausura/startseite/wettbewerb/HOC1,https://www.transfermarkt.com/liga-nacional-clausura/sperrenausfaelle/wettbewerb/HOC1
+Liga Guate Apertura,Americas,Guatemala,https://www.transfermarkt.com/liga-guate-apertura/startseite/wettbewerb/GU1A,https://www.transfermarkt.com/liga-guate-apertura/sperrenausfaelle/wettbewerb/GU1A
+Liga Guate Clausura,Americas,Guatemala,https://www.transfermarkt.com/liga-guate-clausura/startseite/wettbewerb/GU1C,https://www.transfermarkt.com/liga-guate-clausura/sperrenausfaelle/wettbewerb/GU1C
+Primera División Apertura,Americas,El Salvador,https://www.transfermarkt.com/primera-division-apertura/startseite/wettbewerb/SL1A,https://www.transfermarkt.com/primera-division-apertura/sperrenausfaelle/wettbewerb/SL1A
+Betway Premiership,Africa,South Africa,https://www.transfermarkt.com/betway-premiership/startseite/wettbewerb/SFA1,https://www.transfermarkt.com/betway-premiership/sperrenausfaelle/wettbewerb/SFA1
+Premier League,Africa,Egypt,https://www.transfermarkt.com/egyptian-premier-league/startseite/wettbewerb/EGY1,https://www.transfermarkt.com/egyptian-premier-league/sperrenausfaelle/wettbewerb/EGY1
+Botola Pro Inwi,Africa,Morocco,https://www.transfermarkt.com/botola-pro-inwi/startseite/wettbewerb/MAR1,https://www.transfermarkt.com/botola-pro-inwi/sperrenausfaelle/wettbewerb/MAR1
+Ligue Professionnelle 1,Africa,Algeria,https://www.transfermarkt.com/ligue-professionnelle-1/startseite/wettbewerb/ALG1,https://www.transfermarkt.com/ligue-professionnelle-1/sperrenausfaelle/wettbewerb/ALG1
+Ligue I Pro,Africa,Tunisia,https://www.transfermarkt.com/ligue-professionnelle-1/startseite/wettbewerb/TUN1,https://www.transfermarkt.com/ligue-professionnelle-1/sperrenausfaelle/wettbewerb/TUN1
+Premier League,Africa,Ghana,https://www.transfermarkt.com/ghana-premier-league/startseite/wettbewerb/GHPL,https://www.transfermarkt.com/ghana-premier-league/sperrenausfaelle/wettbewerb/GHPL
+Libyan Premier League,Africa,Libya,https://www.transfermarkt.com/libyan-premier-league/startseite/wettbewerb/LPL,https://www.transfermarkt.com/libyan-premier-league/sperrenausfaelle/wettbewerb/LPL
+NPFL,Africa,Nigeria,https://www.transfermarkt.com/nigeria-professional-football-league/startseite/wettbewerb/NPFL,https://www.transfermarkt.com/nigeria-professional-football-league/sperrenausfaelle/wettbewerb/NPFL
+Uganda Premier League,Africa,Uganda,https://www.transfermarkt.com/uganda-premier-league/startseite/wettbewerb/UGL1,https://www.transfermarkt.com/uganda-premier-league/sperrenausfaelle/wettbewerb/UGL1
+Premier League,Africa,Ethiopia,https://www.transfermarkt.com/ethiopian-premier-league/startseite/wettbewerb/ETP1,https://www.transfermarkt.com/ethiopian-premier-league/sperrenausfaelle/wettbewerb/ETP1
+Nedbank Cup,Africa,South Africa,https://www.transfermarkt.com/nedbank-cup/startseite/wettbewerb/NEDC,https://www.transfermarkt.com/nedbank-cup/sperrenausfaelle/wettbewerb/NEDC
+Carling Knockout,Africa,South Africa,https://www.transfermarkt.com/carling-knockout/startseite/wettbewerb/TELK,https://www.transfermarkt.com/carling-knockout/sperrenausfaelle/wettbewerb/TELK
+Egypt Cup,Africa,Egypt,https://www.transfermarkt.com/egypt-cup/startseite/wettbewerb/EGYP,https://www.transfermarkt.com/egypt-cup/sperrenausfaelle/wettbewerb/EGYP
+Coupe du Trône Marocaine,Africa,Morocco,https://www.transfermarkt.com/coupe-du-trone-marocaine/startseite/wettbewerb/MARP,https://www.transfermarkt.com/coupe-du-trone-marocaine/sperrenausfaelle/wettbewerb/MARP
+MTN8,Africa,South Africa,https://www.transfermarkt.com/mtn8/startseite/wettbewerb/SFAL,https://www.transfermarkt.com/mtn8/sperrenausfaelle/wettbewerb/SFAL
+Coupe d'Algerie,Africa,Algeria,https://www.transfermarkt.com/coupe-dalgerie/startseite/wettbewerb/ALGP,https://www.transfermarkt.com/coupe-dalgerie/sperrenausfaelle/wettbewerb/ALGP
+Tunisian Cup,Africa,Tunisia,https://www.transfermarkt.com/tunisian-cup/startseite/wettbewerb/TUNP,https://www.transfermarkt.com/tunisian-cup/sperrenausfaelle/wettbewerb/TUNP
+Egyptian Super Cup,Africa,Egypt,https://www.transfermarkt.com/egyptian-super-cup/startseite/wettbewerb/ESCU,https://www.transfermarkt.com/egyptian-super-cup/sperrenausfaelle/wettbewerb/ESCU
+Supercoupe d'Algérie,Africa,Algeria,https://www.transfermarkt.com/supercoupe-dalgerie/startseite/wettbewerb/AGSC,https://www.transfermarkt.com/supercoupe-dalgerie/sperrenausfaelle/wettbewerb/AGSC
+Championship Playoff,Africa,Egypt,https://www.transfermarkt.com/championship-playoff/startseite/wettbewerb/EGCP,https://www.transfermarkt.com/championship-playoff/sperrenausfaelle/wettbewerb/EGCP
+Relegation Playoff,Africa,Egypt,https://www.transfermarkt.com/relegation-playoff/startseite/wettbewerb/EGRP,https://www.transfermarkt.com/relegation-playoff/sperrenausfaelle/wettbewerb/EGRP
+Qualif. Playoff,Africa,Libya,https://www.transfermarkt.com/libya-qualification-playoff/startseite/wettbewerb/LPL2,https://www.transfermarkt.com/libya-qualification-playoff/sperrenausfaelle/wettbewerb/LPL2
+Rel. Playoff,Africa,Libya,https://www.transfermarkt.com/libya-relegation-playoff/startseite/wettbewerb/LPL1,https://www.transfermarkt.com/libya-relegation-playoff/sperrenausfaelle/wettbewerb/LPL1
+Egyptian League Cup,Africa,Egypt,https://www.transfermarkt.com/egyptian-league-cup/startseite/wettbewerb/EGLC,https://www.transfermarkt.com/egyptian-league-cup/sperrenausfaelle/wettbewerb/EGLC
+Excellence Cup,Africa,Morocco,https://www.transfermarkt.com/moroccan-excellence-cup/startseite/wettbewerb/MEC1,https://www.transfermarkt.com/moroccan-excellence-cup/sperrenausfaelle/wettbewerb/MEC1
