@@ -624,7 +624,7 @@ if not df_status.empty:
     
     with filter_col2:
         positions = sorted(df_status['position'].dropna().unique().tolist())
-        default_positions = [p for p in ['Centre_forward', 'Attacking Midfield', 'Left Winger', 'Right Winger'] if p in positions]
+        default_positions = ['Mittelstürmer'] if 'Mittelstürmer' in positions else []
         selected_positions = st.multiselect("Position", positions, default=default_positions, key="filter_position")
     
     with filter_col3:
@@ -676,3 +676,79 @@ if not df_status.empty:
     
     # Display table
     st.markdown(f'<div class="table-container">{styled_status_df.to_html()}</div>', unsafe_allow_html=True)
+
+# =============================================================================
+# LIVE INJURY SCRAPER
+# =============================================================================
+import requests
+from bs4 import BeautifulSoup
+
+INJURY_LEAGUES = {
+    'Bundesliga (GER)': 'https://www.soccerdonna.de/de/bundesliga/verletzt/wettbewerb_BL1.html',
+    'Premiére Ligue (DEN)': 'https://www.soccerdonna.de/de/premire-ligue/verletzt/wettbewerb_DAN1.html',
+    'WSL (ENG)': 'https://www.soccerdonna.de/de/womens-super-league/verletzt/wettbewerb_ENG1.html',
+    'Serie A (ITA)': 'https://www.soccerdonna.de/de/serie-a-women/verletzt/wettbewerb_IT1.html',
+    'Primera División (ESP)': 'https://www.soccerdonna.de/de/primera-division-femenina/verletzt/wettbewerb_ESP1.html',
+}
+
+@st.cache_data(ttl=3600)
+def fetch_injury_data(url):
+    try:
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        all_data = []
+
+        def parse_table(tid):
+            table = soup.find('table', id=tid)
+            if not table: return []
+            rows = table.find_all('tr', class_=['hell', 'dunkel'])
+            extracted = []
+            for row in rows:
+                cols = row.find_all('td', recursive=False)
+                if len(cols) < 6: continue
+
+                p_name = 'N/A'
+                nested = cols[0].find('table')
+                if nested and nested.find('a', class_='fb s10'):
+                    p_name = nested.find('a', class_='fb s10').text.strip()
+
+                club = cols[1].find('a')['title'].strip() if cols[1].find('a') else 'N/A'
+                injury = cols[4].text.strip()
+                if 'unbekannte Verletzung' in injury: injury = 'Erdbeerwoche'
+                since = cols[5].text.strip()
+
+                pos = 'N/A'
+                if nested:
+                    trs = nested.find_all('tr')
+                    if len(trs) > 1: pos = trs[1].text.strip()
+
+                extracted.append({'club': club, 'name': p_name, 'pos': pos, 'injury': injury, 'since': since})
+            return extracted
+
+        all_data.extend(parse_table('reha'))
+        all_data.extend(parse_table('verletzt'))
+        return pd.DataFrame(all_data).sort_values(by='club')
+
+    except Exception:
+        return pd.DataFrame(columns=['club', 'name', 'pos', 'injury', 'since'])
+
+st.markdown("---")
+st.markdown('<div class="header-box">🚑 Live Injury Data</div>', unsafe_allow_html=True)
+
+selected_injury_league = st.selectbox("League", list(INJURY_LEAGUES.keys()), key="injury_league")
+
+df_injuries = fetch_injury_data(INJURY_LEAGUES[selected_injury_league])
+
+if not df_injuries.empty:
+    st.markdown(f'<div style="color:#888; font-size:12px; margin-bottom:10px;">{len(df_injuries)} injured players</div>', unsafe_allow_html=True)
+    
+    styled_injuries = df_injuries.reset_index(drop=True).style.set_properties(**{
+        'text-align': 'left'
+    }).set_table_styles([
+        {'selector': 'th', 'props': [('text-align', 'left')]},
+        {'selector': 'td', 'props': [('text-align', 'left')]}
+    ])
+    
+    st.markdown(f'<div class="table-container">{styled_injuries.to_html()}</div>', unsafe_allow_html=True)
+else:
+    st.info("No injury data available for this league.")
