@@ -286,7 +286,7 @@ with col1:
     selected_team = st.selectbox(" ", teams, label_visibility="collapsed")
 
 with col2:
-    team_xg = st.slider(" ", min_value=0.5, max_value=4.0, value=1.23, step=0.05, label_visibility="collapsed")
+    team_xg = st.slider(" ", min_value=0.5, max_value=4.0, value=1.15, step=0.05, label_visibility="collapsed")
 
 with col3:
     sort_options = {'ATG': 'goal_odds', 'AST': 'assist_odds'}
