@@ -624,7 +624,7 @@ if not df_status.empty:
     
     with filter_col2:
         positions = sorted(df_status['position'].dropna().unique().tolist())
-        default_positions = ['Mittelstürmer'] if 'Mittelstürmer' in positions else []
+        default_positions = [p for p in ['Centre Forward', 'Attacking Midfield', 'Right Winger', 'Left Winger'] if p in positions]
         selected_positions = st.multiselect("Position", positions, default=default_positions, key="filter_position")
     
     with filter_col3:
