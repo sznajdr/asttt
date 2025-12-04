@@ -309,7 +309,7 @@ display_df = display_df.rename(columns={'Type': '+/-', 'Mins': 'min'})
 
 # Position colors from original
 POS_COLORS = {
-    'ST': '#922725', 'CF': '#922725', 
+    'ST': '#8F0000', 'CF': '#8F0000', 
     'RW': '#8D4E28', 'LW': '#8D4E28',
     'CAM': '#5a8a5a', 
     'RM': '#237023', 'LM': '#237023',
