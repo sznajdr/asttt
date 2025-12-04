@@ -648,9 +648,6 @@ if not df_status.empty:
     if selected_types:
         df_filtered = df_filtered[df_filtered['data_type'].isin(selected_types)]
     
-    # Display count
-    st.markdown(f'<div class="header-box">Suspensions & Injuries | {len(df_filtered)} records</div>', unsafe_allow_html=True)
-    
     # Style for the status table
     def color_data_type(val):
         if val == 'suspensions':
