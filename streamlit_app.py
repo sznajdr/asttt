@@ -733,14 +733,25 @@ def fetch_injury_data(url):
         return pd.DataFrame(columns=['club', 'name', 'pos', 'injury', 'since'])
 
 st.markdown("---")
-st.markdown('<div class="header-box">🚑 Live Injury Data</div>', unsafe_allow_html=True)
 
-selected_injury_league = st.selectbox("League", list(INJURY_LEAGUES.keys()), key="injury_league")
+injury_col1, injury_col2 = st.columns(2)
+
+with injury_col1:
+    selected_injury_league = st.selectbox("League", list(INJURY_LEAGUES.keys()), key="injury_league", label_visibility="collapsed")
 
 df_injuries = fetch_injury_data(INJURY_LEAGUES[selected_injury_league])
 
+with injury_col2:
+    if not df_injuries.empty:
+        teams = ['All'] + sorted(df_injuries['club'].dropna().unique().tolist())
+        default_team_idx = teams.index('1. FC Köln') if '1. FC Köln' in teams else 0
+        selected_injury_team = st.selectbox("Team", teams, index=default_team_idx, key="injury_team", label_visibility="collapsed")
+    else:
+        selected_injury_team = 'All'
+
 if not df_injuries.empty:
-    st.markdown(f'<div style="color:#888; font-size:12px; margin-bottom:10px;">{len(df_injuries)} injured players</div>', unsafe_allow_html=True)
+    if selected_injury_team != 'All':
+        df_injuries = df_injuries[df_injuries['club'] == selected_injury_team]
     
     styled_injuries = df_injuries.reset_index(drop=True).style.set_properties(**{
         'text-align': 'left'
