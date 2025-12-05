@@ -91,7 +91,7 @@ POS_SORT = {'ST':1,'CF':2,'RW':3,'LW':4,'CAM':5,'RM':6,'LM':7,'CM':8,'DM':9,'RWB
 
 STATS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_player_season_stats.csv"
 FEATURES_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/player_features.csv"
-MODEL_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/football_model.pkl"
+MODEL_URL = "https://raw.githubusercontent.com/sznajdr/asttt/refs/heads/main/football_model.pkl"
 
 def _normalize_pos(row):
     if 'position_id' in row and pd.notna(row['position_id']):
