@@ -1,5 +1,3 @@
-
-
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -18,7 +16,6 @@ st.set_page_config(page_title="Goalscorer Odds", layout="wide")
 # =============================================================================
 # 1. HARDCODED FEATURE LIST (FALLBACK SAFETY NET)
 # =============================================================================
-# If the model file doesn't list its features, we use these.
 FALLBACK_FEATURES = [
     'shooting_xg_per90', 'passing_xa_per90', 'form_5_goal_rate', 'form_5_assist_rate', 
     'trait_goals', 'trait_chances_created', 'shotmap_overperformance', 'shotmap_conversion_rate',
@@ -94,7 +91,7 @@ POS_SORT = {'ST':1,'CF':2,'RW':3,'LW':4,'CAM':5,'RM':6,'LM':7,'CM':8,'DM':9,'RWB
 
 STATS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_player_season_stats.csv"
 FEATURES_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/player_features.csv"
-MODEL_URL = "https://raw.githubusercontent.com/sznajdr/asttt/refs/heads/main/football_model.pkl"
+MODEL_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/football_model.pkl"
 
 def _normalize_pos(row):
     if 'position_id' in row and pd.notna(row['position_id']):
@@ -103,7 +100,7 @@ def _normalize_pos(row):
     if 'primary_position_key' in row and pd.notna(row['primary_position_key']):
         raw = str(row['primary_position_key']).lower().replace('-', '').replace(' ', '').replace('_', '')
         for k, v in TEXT_POS_MAP.items():
-            if k in raw: return v
+            if k == raw: return v
         for k, v in TEXT_POS_MAP.items():
             if k in raw: return v
     return 'CM'
@@ -186,31 +183,28 @@ def predict_xgb(player_row, model_data, team_xg, debug):
             if debug: st.error("Models missing in pickle object.")
             return None, None
             
-        # 3. Aggressive Feature Finding
-        if not goal_feats:
-            if hasattr(goal_model, 'feature_names_in_'): 
-                goal_feats = goal_model.feature_names_in_
-            elif hasattr(goal_model, 'get_booster'):
-                try: goal_feats = goal_model.get_booster().feature_names
-                except: pass
+        # 3. Aggressive Feature Finding (Robust Conversion to List)
+        if hasattr(goal_model, 'feature_names_in_'): 
+            goal_feats = list(goal_model.feature_names_in_)
+        elif hasattr(goal_model, 'get_booster'):
+            try: goal_feats = list(goal_model.get_booster().feature_names)
+            except: pass
         
-        if not assist_feats:
-            if hasattr(assist_model, 'feature_names_in_'): 
-                assist_feats = assist_model.feature_names_in_
-            elif hasattr(assist_model, 'get_booster'):
-                try: assist_feats = assist_model.get_booster().feature_names
-                except: pass
+        if hasattr(assist_model, 'feature_names_in_'): 
+            assist_feats = list(assist_model.feature_names_in_)
+        elif hasattr(assist_model, 'get_booster'):
+            try: assist_feats = list(assist_model.get_booster().feature_names)
+            except: pass
 
-        # 4. FINAL FALLBACK: If still no features, use the Hardcoded List
-        if not goal_feats or len(goal_feats) == 0:
+        # 4. FINAL FALLBACK: If list is empty, use Hardcoded
+        if goal_feats is None or len(goal_feats) == 0:
             if debug: st.warning("Using Hardcoded Fallback Features")
             goal_feats = FALLBACK_FEATURES
         
-        if not assist_feats or len(assist_feats) == 0:
+        if assist_feats is None or len(assist_feats) == 0:
             assist_feats = FALLBACK_FEATURES
 
         # 5. Build Feature Vector
-        # We only use features that actually exist in the dataframe
         valid_goal_feats = [f for f in goal_feats if f in player_row.index]
         X_g = np.array([safe_get(player_row, f) for f in valid_goal_feats]).reshape(1, -1)
         
