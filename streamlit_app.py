@@ -7,7 +7,7 @@ Features:
 - Hybrid prediction: XGBoost + heuristic ensemble
 - All quick wins from enhanced version
 """
-
+import os
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -232,20 +232,40 @@ def load_lineups_data():
 # =============================================================================
 
 @st.cache_resource
+import os  # <--- Make sure this is imported at the top
+
+@st.cache_resource
 def load_xgb_models():
-    """Load pre-trained XGBoost models if available"""
+    """Load pre-trained XGBoost models using absolute paths"""
     if not XGB_AVAILABLE:
+        st.warning("XGBoost library not installed.")
         return None, None
     
+    # 1. Get the absolute path of the folder containing this script
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 2. Construct the full path to the models
+    goal_path = os.path.join(current_dir, 'goal_model.json')
+    assist_path = os.path.join(current_dir, 'assist_model.json')
+    
+    # 3. Debugging: Check if files actually exist
+    if not os.path.exists(goal_path):
+        st.error(f"❌ Could not find file: {goal_path}")
+        return None, None
+        
     try:
         goal_model = xgb.XGBRegressor()
-        goal_model.load_model('goal_model.json')
+        goal_model.load_model(goal_path)
         
         assist_model = xgb.XGBRegressor()
-        assist_model.load_model('assist_model.json')
+        assist_model.load_model(assist_path)
         
+        # Success!
         return goal_model, assist_model
+        
     except Exception as e:
+        # 4. Catch loading errors (e.g., version mismatch)
+        st.error(f"❌ Found files but failed to load: {e}")
         return None, None
 
 # =============================================================================
