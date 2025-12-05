@@ -80,6 +80,7 @@ CLUSTER_FEATURES = [
 STATS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_player_season_stats.csv"
 FEATURES_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/player_features.csv"
 LINEUPS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_lineups.csv"
+CURRENT_SEASON_URL = "https://raw.githubusercontent.com/sznajdr/asttt/refs/heads/main/fotmobsmart_positions.csv"
 
 TACTIC_POS_COLORS = {
     'GK': '#e2b714', 'DEF': '#3794ff', 'MID': '#4ec9b0', 'FWD': '#e056fd', 'UNK': '#666'
@@ -224,6 +225,26 @@ def load_lineups_data():
                 df_l[c] = pd.to_numeric(df_l[c], errors='coerce').fillna(0)
         return df_l
     except Exception as e:
+        return pd.DataFrame()
+
+@st.cache_data
+def load_current_season_players():
+    """Load player IDs from current season data to filter out old players"""
+    try:
+        df_cs = pd.read_csv(CURRENT_SEASON_URL)
+        # Get unique player_id and team combinations from current season
+        if 'player_id' in df_cs.columns and 'team' in df_cs.columns:
+            # Filter out Unknown teams and get players with actual team assignments
+            df_cs = df_cs[df_cs['team'] != 'Unknown']
+            # Get the most recent team for each player
+            current_players = df_cs.groupby('player_id').agg({
+                'team': 'last',  # Most recent team
+                'name': 'first'
+            }).reset_index()
+            return current_players
+        return pd.DataFrame()
+    except Exception as e:
+        st.warning(f"Could not load current season filter: {e}")
         return pd.DataFrame()
 
 # =============================================================================
@@ -376,13 +397,22 @@ def predict_heuristic(player_row, team_xg_mod=1.0, team_avg_value=1):
     
     return exp_g * value_boost, exp_a * value_boost
 
-def predict_odds(df, team, team_xg=1.5, use_xgb=True):
+def predict_odds(df, team, team_xg=1.5, use_xgb=True, current_season_players=None):
     """
     Combined prediction using XGBoost + Heuristic ensemble
     """
     sub = df[df['team'] == team].copy()
     if sub.empty:
         return pd.DataFrame()
+    
+    # Filter to only current season players if available
+    if current_season_players is not None and not current_season_players.empty:
+        # Get player IDs that are on this team in current season
+        current_team_players = current_season_players[current_season_players['team'] == team]['player_id'].tolist()
+        if current_team_players:
+            sub = sub[sub['player_id'].isin(current_team_players)]
+            if sub.empty:
+                return pd.DataFrame()
     
     xg_mod = team_xg / 1.22
     team_avg_value = sub['market_value'].replace(0, np.nan).mean() or 1
@@ -511,6 +541,7 @@ st.markdown("""
 
 with st.spinner(""):
     df = load_data()
+    current_season_players = load_current_season_players()
 
 if df.empty:
     st.error("No data loaded. Check the CSV URLs.")
@@ -535,7 +566,7 @@ with col4:
     use_xgb = st.checkbox("xgb", value=False)
 
 # Get predictions
-data = predict_odds(df, selected_team, team_xg, use_xgb=use_xgb)
+data = predict_odds(df, selected_team, team_xg, use_xgb=use_xgb, current_season_players=current_season_players)
 
 if data.empty:
     st.warning("No players found for this team")
