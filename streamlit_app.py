@@ -26,8 +26,20 @@ except ImportError:
     XGB_AVAILABLE = False
 
 # =============================================================================
-# CLASS DEFINITION (REQUIRED FOR PICKLE LOADING)
+# CLASS DEFINITIONS (REQUIRED FOR PICKLE LOADING)
 # =============================================================================
+
+class ModelConfig:
+    """
+    Configuration container to satisfy pickle requirements.
+    Likely holds feature lists and hyperparameters.
+    """
+    def __init__(self):
+        # Default initialization; pickle will overwrite attributes
+        self.goal_features = []
+        self.assist_features = []
+        self.scaler = None
+
 class GoalAssistModel:
     """
     Reconstructs the class structure expected by the pickle file.
