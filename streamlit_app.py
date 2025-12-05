@@ -32,13 +32,13 @@ except ImportError:
 class ModelConfig:
     """
     Configuration container to satisfy pickle requirements.
-    Likely holds feature lists and hyperparameters.
     """
     def __init__(self):
-        # Default initialization; pickle will overwrite attributes
         self.goal_features = []
         self.assist_features = []
         self.scaler = None
+        self.goal_model = None
+        self.assist_model = None
 
 class GoalAssistModel:
     """
@@ -53,6 +53,12 @@ class GoalAssistModel:
     def predict_proba(self, X):
         # Delegates prediction to the internal XGBoost/Sklearn model
         if hasattr(self, 'model') and self.model is not None:
+            # Apply scaler if it exists within this wrapper
+            if hasattr(self, 'scaler') and self.scaler is not None:
+                try:
+                    X = self.scaler.transform(X)
+                except:
+                    pass # Fallback to unscaled if shapes mismatch
             return self.model.predict_proba(X)
         return np.zeros((X.shape[0], 2)) # Fallback
 
@@ -82,18 +88,6 @@ POS_SORT = {'ST':1,'CF':2,'RW':3,'LW':4,'CAM':5,'RM':6,'LM':7,'CM':8,'DM':9,'RWB
 
 POS_ENCODING = {'ST': 0, 'CF': 1, 'RW': 2, 'LW': 3, 'CAM': 4, 'RM': 5, 'LM': 6, 
                 'CM': 7, 'DM': 8, 'RWB': 9, 'LWB': 10, 'RB': 11, 'LB': 12, 'CB': 13}
-
-# Player type colors
-TYPE_COLORS = {
-    'Poacher': '#dc3545',
-    'Playmaker': '#17a2b8', 
-    'Box Crasher': '#fd7e14',
-    'Target Man': '#6f42c1',
-    'Wide Creator': '#20c997',
-    'Dribbler': '#e83e8c',
-    'Utility': '#6c757d',
-    'Complete': '#28a745'
-}
 
 # =============================================================================
 # DATA LOADING
@@ -263,6 +257,13 @@ def safe_get(row, col, default=0):
         return default
     return float(val)
 
+def get_model_attr(container, key, default=None):
+    """Safely get attribute from dict or object"""
+    if isinstance(container, dict):
+        return container.get(key, default)
+    else:
+        return getattr(container, key, default)
+
 def predict_with_pkl_model(player_row, model_data, team_xg=1.5):
     """
     Use the football_model.pkl to predict goal/assist probabilities.
@@ -272,32 +273,46 @@ def predict_with_pkl_model(player_row, model_data, team_xg=1.5):
         return None, None
     
     try:
-        goal_model = model_data.get('goal_model')
-        assist_model = model_data.get('assist_model')
-        goal_features = model_data.get('goal_features', [])
-        assist_features = model_data.get('assist_features', [])
-        scaler = model_data.get('scaler')
+        # Robust retrieval handling both Dict and Object (ModelConfig) structure
+        goal_model = get_model_attr(model_data, 'goal_model')
+        assist_model = get_model_attr(model_data, 'assist_model')
         
         if goal_model is None or assist_model is None:
             return None, None
+
+        # Features might be in the container or inside the goal_model itself
+        goal_features = get_model_attr(model_data, 'goal_features', [])
+        if not goal_features and hasattr(goal_model, 'features'):
+            goal_features = goal_model.features
+
+        assist_features = get_model_attr(model_data, 'assist_features', [])
+        if not assist_features and hasattr(assist_model, 'features'):
+            assist_features = assist_model.features
+            
+        scaler = get_model_attr(model_data, 'scaler')
         
         # Prepare goal features
+        if not goal_features: return None, None
         goal_vals = []
         for f in goal_features:
             goal_vals.append(safe_get(player_row, f, 0))
         X_goal = np.array(goal_vals).reshape(1, -1)
         
         # Prepare assist features
+        if not assist_features: return None, None
         assist_vals = []
         for f in assist_features:
             assist_vals.append(safe_get(player_row, f, 0))
         X_assist = np.array(assist_vals).reshape(1, -1)
         
-        # Scale if scaler exists
+        # Scale if scaler exists at top level
+        # Note: If GoalAssistModel has internal scaler, it handles it in predict_proba
         if scaler is not None:
-            # The scaler was fit on combined features, need to handle separately
-            # For simplicity, predict without scaling if features don't match
-            pass
+            try:
+                X_goal = scaler.transform(X_goal)
+                X_assist = scaler.transform(X_assist)
+            except:
+                pass # Squelch scaling errors (e.g. feature mismatch), try raw
         
         # Predict probabilities
         goal_prob = goal_model.predict_proba(X_goal)[0, 1]
@@ -315,6 +330,8 @@ def predict_with_pkl_model(player_row, model_data, team_xg=1.5):
         return goal_prob, assist_prob
         
     except Exception as e:
+        # Uncomment for debugging
+        # st.toast(f"XGB Error: {str(e)}") 
         return None, None
 
 def predict_heuristic(player_row, team_xg_mod=1.0, team_avg_value=1):
