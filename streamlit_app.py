@@ -544,8 +544,8 @@ if data.empty:
 data = data.sort_values(sort_options[sort_by])
 
 # Prepare display (Added 'Model' to columns so you can see if it worked)
-display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'PType', 'Mins', 'Model']].reset_index(drop=True)
-display_df = display_df.rename(columns={'Type': '+/-', 'Mins': 'min', 'Model': 'Md'})
+display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'PType', 'Mins']].reset_index(drop=True)
+display_df = display_df.rename(columns={'Type': '+/-', 'Mins': 'min'})
 
 # Add * to +/- for playmakers/wide creators
 display_df['+/-'] = display_df.apply(
