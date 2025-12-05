@@ -490,7 +490,7 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
 # STREAMLIT UI
 # =============================================================================
 
-st.set_page_config(page_title="Goalscorer Odds", layout="wide")
+st.set_page_config(page_title=" ", layout="wide")
 
 st.markdown("""
 <style>
