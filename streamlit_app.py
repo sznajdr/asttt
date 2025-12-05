@@ -37,12 +37,11 @@ STATS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmo
 FEATURES_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/player_features.csv"
 LINEUPS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_lineups.csv"
 
-# Tactical profile position colors
 TACTIC_POS_COLORS = {
-    'GK': '#e2b714',  # Gold/Yellow
-    'DEF': '#3794ff', # Blue
-    'MID': '#4ec9b0', # Teal/Green
-    'FWD': '#e056fd', # Purple/Pink
+    'GK': '#e2b714',
+    'DEF': '#3794ff',
+    'MID': '#4ec9b0',
+    'FWD': '#e056fd',
     'UNK': '#666'
 }
 
@@ -81,15 +80,12 @@ def load_data():
         st.error(f"Failed to read fotmob_multi_player_season_stats.csv: {e}")
         return pd.DataFrame()
 
-    # Pre-process Stats
     if 'total_minutes' in df_s.columns:
         df_s['total_minutes'] = df_s['total_minutes'].astype(str).str.replace(',', '', regex=False)
         df_s['total_minutes'] = pd.to_numeric(df_s['total_minutes'], errors='coerce').fillna(0)
     
-    # Dedupe based on minutes
     df_s = df_s.sort_values('total_minutes', ascending=False).drop_duplicates('player_id')
     
-    # Merge
     cols_s = ['player_id', 'player_name', 'team', 'total_minutes', 'total_goals', 'total_assists', 'position']
     if 'position_id' in df_s.columns: cols_s.append('position_id')
     cols_s = [c for c in cols_s if c in df_s.columns]
@@ -100,12 +96,26 @@ def load_data():
         st.error("Merge produced empty result.")
         return df
 
-    # Process Data
     try:
         df['pos'] = df.apply(_normalize_pos, axis=1)
         df['pos_sort'] = df['pos'].map(lambda x: POS_SORT.get(x, 99))
         
-        num_cols = ['shooting_xg_per90', 'passing_xa_per90', 'form_5_goal_rate', 'form_5_assist_rate', 'trait_goals', 'trait_chances_created']
+        # Extended numeric columns for enhanced model
+        num_cols = [
+            'shooting_xg_per90', 'passing_xa_per90', 'form_5_goal_rate', 'form_5_assist_rate', 
+            'trait_goals', 'trait_chances_created',
+            # NEW: Quick win features
+            'shotmap_overperformance', 'shotmap_conversion_rate',
+            'possession_touches_in_opposition_box_per90',
+            'form_5_minutes', 'form_10_minutes',
+            'career_goals_per_appearance', 'career_assists_per_appearance',
+            'shotmap_freekick_goals', 'shotmap_penalty_goals', 'shotmap_header_goals', 'shotmap_header_xg',
+            'defending_aerials_won_pct',
+            'passing_successful_crosses_per90', 'passing_cross_accuracy',
+            'possession_dribbles_per90', 'possession_fouls_won_per90',
+            'shotmap_inside_box_shots', 'shotmap_total_shots',
+            'shooting_goals_percentile', 'passing_xa_percentile', 'passing_chances_created_per90'
+        ]
         for c in num_cols:
             if c in df.columns:
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -113,7 +123,6 @@ def load_data():
                 df[c] = 0.0
         
         df['market_value'] = df.get('market_value', pd.Series(0)).apply(_parse_market_value)
-        
         df = df[(df['total_minutes'] >= 1) & (df['pos'] != 'GK')].copy()
         
         return df
@@ -134,47 +143,211 @@ def load_lineups_data():
         return pd.DataFrame()
 
 # =============================================================================
-# PREDICTION
+# ENHANCED PREDICTION - ALL QUICK WINS
 # =============================================================================
 
+def safe_get(row, col, default=0):
+    """Safely get a value from row, returning default if missing or NaN"""
+    val = row.get(col, default)
+    if pd.isna(val):
+        return default
+    return float(val)
+
 def predict_odds(df, team, team_xg=1.5):
+    """
+    ENHANCED prediction with quick wins:
+    1. shotmap_overperformance - clinical finisher bonus
+    2. box_touches_per90 - danger zone presence
+    3. Form confidence weighting (minutes-adjusted)
+    4. Career prior blending (Bayesian-style for low minutes)
+    5. Enhanced assist model (crosses, dribbles, fouls won)
+    6. Set piece specialist detection
+    7. Header threat for aerial specialists
+    """
     sub = df[df['team'] == team].copy()
-    if sub.empty: return pd.DataFrame()
+    if sub.empty:
+        return pd.DataFrame()
+    
     xg_mod = team_xg / 1.22
     team_avg_value = sub['market_value'].replace(0, np.nan).mean() or 1
+    
     results = []
+    
     for _, p in sub.iterrows():
         pos = p['pos']
+        total_minutes = safe_get(p, 'total_minutes', 0)
+        
+        # =================================================================
+        # GOAL PREDICTION - ENHANCED
+        # =================================================================
+        
         base_g = GOAL_BASELINES.get(pos, 0.10)
-        xg_p90 = p.get('shooting_xg_per90', 0)
-        xg_pct = p.get('shooting_goals_percentile', 50) / 100
-        form_g = p.get('form_5_goal_rate', 0)
-        trait_g = p.get('trait_goals', 0) / 100 if p.get('trait_goals', 0) > 1 else p.get('trait_goals', 0)
-        exp_g = (base_g * 0.3 + xg_p90 * 0.35 + form_g * 0.20 + trait_g * 0.15) * xg_mod
-        if xg_pct > 0.8: exp_g *= 1.15
-        elif xg_pct > 0.6: exp_g *= 1.05
+        xg_p90 = safe_get(p, 'shooting_xg_per90', 0)
+        xg_pct = safe_get(p, 'shooting_goals_percentile', 50) / 100
+        
+        # [QUICK WIN 1] Clinical finisher bonus from overperformance
+        overperformance = safe_get(p, 'shotmap_overperformance', 0)
+        clinical_bonus = 1.0
+        if overperformance > 0.5:
+            clinical_bonus = 1.15
+        elif overperformance > 0.2:
+            clinical_bonus = 1.08
+        elif overperformance < -0.3:
+            clinical_bonus = 0.92
+        
+        # [QUICK WIN 2] Box touches - danger zone presence
+        box_touches_p90 = safe_get(p, 'possession_touches_in_opposition_box_per90', 0)
+        box_presence_bonus = 1.0
+        if box_touches_p90 > 5:
+            box_presence_bonus = 1.12
+        elif box_touches_p90 > 3:
+            box_presence_bonus = 1.06
+        elif box_touches_p90 > 1.5:
+            box_presence_bonus = 1.02
+        
+        # [QUICK WIN 3] Form confidence weighting
+        form_5_minutes = safe_get(p, 'form_5_minutes', 0)
+        form_5_goal_rate = safe_get(p, 'form_5_goal_rate', 0)
+        form_confidence = min(form_5_minutes / 300, 1.0)
+        adjusted_form_g = form_5_goal_rate * form_confidence
+        
+        # [QUICK WIN 4] Career prior blending
+        career_goals_per_app = safe_get(p, 'career_goals_per_appearance', 0)
+        minutes_weight = min(total_minutes / 900, 1.0)
+        blended_scoring_rate = (xg_p90 * minutes_weight) + (career_goals_per_app * (1 - minutes_weight))
+        
+        # [QUICK WIN 6] Set piece specialist
+        freekick_goals = safe_get(p, 'shotmap_freekick_goals', 0)
+        penalty_goals = safe_get(p, 'shotmap_penalty_goals', 0)
+        set_piece_bonus = 1.0
+        if freekick_goals >= 1 or penalty_goals >= 2:
+            set_piece_bonus = 1.10
+        elif penalty_goals >= 1:
+            set_piece_bonus = 1.05
+        
+        # [QUICK WIN 7] Header threat
+        header_goals = safe_get(p, 'shotmap_header_goals', 0)
+        header_xg = safe_get(p, 'shotmap_header_xg', 0)
+        aerials_won_pct = safe_get(p, 'defending_aerials_won_pct', 0) / 100
+        header_bonus = 1.0
+        if header_goals >= 2 or (header_xg > 0.3 and aerials_won_pct > 0.5):
+            header_bonus = 1.08
+        elif header_goals >= 1 and aerials_won_pct > 0.4:
+            header_bonus = 1.04
+        
+        # Trait goals (normalized)
+        trait_g = safe_get(p, 'trait_goals', 0)
+        trait_g = trait_g / 100 if trait_g > 1 else trait_g
+        
+        # ENHANCED expected goals calculation
+        exp_g = (
+            base_g * 0.18 +
+            blended_scoring_rate * 0.32 +
+            adjusted_form_g * 0.22 +
+            trait_g * 0.13 +
+            (box_touches_p90 / 20) * 0.15
+        ) * xg_mod * clinical_bonus * box_presence_bonus * set_piece_bonus * header_bonus
+        
+        # Percentile boost
+        if xg_pct > 0.8:
+            exp_g *= 1.12
+        elif xg_pct > 0.6:
+            exp_g *= 1.05
+        
+        # =================================================================
+        # ASSIST PREDICTION - ENHANCED
+        # =================================================================
+        
         base_a = ASSIST_BASELINES.get(pos, 0.10)
-        xa_p90 = p.get('passing_xa_per90', 0)
-        xa_pct = p.get('passing_xa_percentile', 50) / 100
-        cc_p90 = p.get('passing_chances_created_per90', 0)
-        form_a = p.get('form_5_assist_rate', 0)
-        trait_cc = p.get('trait_chances_created', 0) / 100 if p.get('trait_chances_created', 0) > 1 else p.get('trait_chances_created', 0)
-        exp_a = (base_a * 0.25 + xa_p90 * 0.30 + (cc_p90 / 3) * 0.20 + form_a * 0.15 + trait_cc * 0.10) * (xg_mod * 0.82)
-        if xa_pct > 0.8 or cc_p90 > 0.8: exp_a *= 1.15
-        elif xa_pct > 0.6 or cc_p90 > 0.6: exp_a *= 1.05
-        value_ratio = (p.get('market_value', 0) or 1) / team_avg_value
+        xa_p90 = safe_get(p, 'passing_xa_per90', 0)
+        xa_pct = safe_get(p, 'passing_xa_percentile', 50) / 100
+        cc_p90 = safe_get(p, 'passing_chances_created_per90', 0)
+        
+        # Form with confidence
+        form_5_assist_rate = safe_get(p, 'form_5_assist_rate', 0)
+        adjusted_form_a = form_5_assist_rate * form_confidence
+        
+        # Career prior for assists
+        career_assists_per_app = safe_get(p, 'career_assists_per_appearance', 0)
+        blended_assist_rate = (xa_p90 * minutes_weight) + (career_assists_per_app * (1 - minutes_weight))
+        
+        # [QUICK WIN 5] Enhanced assist features
+        crosses_p90 = safe_get(p, 'passing_successful_crosses_per90', 0)
+        cross_accuracy = safe_get(p, 'passing_cross_accuracy', 0) / 100
+        dribbles_p90 = safe_get(p, 'possession_dribbles_per90', 0)
+        fouls_won_p90 = safe_get(p, 'possession_fouls_won_per90', 0)
+        
+        # Crossing threat (wingers/fullbacks)
+        cross_bonus = 1.0
+        if pos in ['RW', 'LW', 'RM', 'LM', 'RWB', 'LWB', 'RB', 'LB']:
+            if crosses_p90 > 1.5 and cross_accuracy > 0.25:
+                cross_bonus = 1.12
+            elif crosses_p90 > 0.8:
+                cross_bonus = 1.06
+        
+        # Dribble creator bonus
+        dribble_bonus = 1.0
+        if dribbles_p90 > 3:
+            dribble_bonus = 1.08
+        elif dribbles_p90 > 1.5:
+            dribble_bonus = 1.04
+        
+        # Fouls won = dangerous free kicks
+        foul_bonus = 1.0
+        if fouls_won_p90 > 2.5:
+            foul_bonus = 1.06
+        elif fouls_won_p90 > 1.5:
+            foul_bonus = 1.03
+        
+        trait_cc = safe_get(p, 'trait_chances_created', 0)
+        trait_cc = trait_cc / 100 if trait_cc > 1 else trait_cc
+        
+        # ENHANCED expected assists calculation
+        exp_a = (
+            base_a * 0.18 +
+            blended_assist_rate * 0.28 +
+            (cc_p90 / 3) * 0.22 +
+            adjusted_form_a * 0.18 +
+            trait_cc * 0.14
+        ) * (xg_mod * 0.82) * cross_bonus * dribble_bonus * foul_bonus
+        
+        # Percentile boost
+        if xa_pct > 0.8 or cc_p90 > 2.5:
+            exp_a *= 1.12
+        elif xa_pct > 0.6 or cc_p90 > 1.5:
+            exp_a *= 1.05
+        
+        # =================================================================
+        # MARKET VALUE ADJUSTMENT (same as original)
+        # =================================================================
+        
+        value_ratio = (safe_get(p, 'market_value', 0) or 1) / team_avg_value
         value_boost = 1.12 if value_ratio >= 2 else 1.06 if value_ratio >= 1.5 else 1.0 if value_ratio >= 0.7 else 0.95
         exp_g *= value_boost
         exp_a *= value_boost
+        
+        # =================================================================
+        # CONVERT TO ODDS
+        # =================================================================
+        
         prob_g = 1 - np.exp(-exp_g)
         prob_a = 1 - np.exp(-exp_a)
+        
         odds_g = np.clip((1 / max(prob_g, 0.01)) * 1.05, 1.30, 50.0)
         odds_a = np.clip((1 / max(prob_a, 0.01)) * 1.05, 1.40, 50.0)
-        if pos in ['CB','RB','LB']: odds_g = max(odds_g, 8.0)
-        if pos == 'DM': odds_g = max(odds_g, 6.0)
-        if pos == 'CB': odds_a = max(odds_a, 12.0)
+        
+        # Position floors
+        if pos in ['CB', 'RB', 'LB']:
+            odds_g = max(odds_g, 8.0)
+        if pos == 'DM':
+            odds_g = max(odds_g, 6.0)
+        if pos == 'CB':
+            odds_a = max(odds_a, 12.0)
+        
+        # Type calculation
         total_threat = xg_p90 + xa_p90
         scorer_ratio = xg_p90 / total_threat if total_threat > 0 else 0.5
+        
         results.append({
             'Player': p.get('player_name', 'Unknown'),
             'Pos': pos,
@@ -183,11 +356,12 @@ def predict_odds(df, team, team_xg=1.5):
             'xG': round(xg_p90, 2),
             'xA': round(xa_p90, 2),
             'Type': round(scorer_ratio, 2),
-            'Mins': int(p.get('total_minutes', 0)),
+            'Mins': int(total_minutes),
             'pos_sort': POS_SORT.get(pos, 99),
             'goal_odds': round(odds_g, 2),
             'assist_odds': round(odds_a, 2)
         })
+    
     return pd.DataFrame(results).sort_values('pos_sort')
 
 # =============================================================================
@@ -196,7 +370,6 @@ def predict_odds(df, team, team_xg=1.5):
 
 st.set_page_config(page_title=" ", layout="wide")
 
-# Dark theme CSS
 st.markdown("""
 <style>
     .stApp {
@@ -210,7 +383,6 @@ st.markdown("""
         font-weight: bold;
         color: #3794ff;
     }
-    /* Style the HTML table */
     table {
         width: 100%;
         border-collapse: collapse;
@@ -234,12 +406,9 @@ st.markdown("""
     table tr:hover {
         background: #2d2d2d;
     }
-    /* Hide the index column */
     table th:first-child, table td:first-child {
         display: none;
     }
-    
-    /* Mobile responsive */
     @media screen and (max-width: 768px) {
         table {
             font-size: 11px;
@@ -252,13 +421,11 @@ st.markdown("""
             font-size: 12px;
             padding: 8px;
         }
-        /* Make table scrollable horizontally */
         .table-container {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
         }
     }
-    
     @media screen and (max-width: 480px) {
         table {
             font-size: 10px;
@@ -270,7 +437,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Load data
 with st.spinner(""):
     df = load_data()
 
@@ -278,7 +444,6 @@ if df.empty:
     st.error("No data loaded. Check the CSV URLs.")
     st.stop()
 
-# Controls
 col1, col2, col3 = st.columns([2, 3, 2])
 
 with col1:
@@ -292,22 +457,17 @@ with col3:
     sort_options = {'ATG': 'goal_odds', 'AST': 'assist_odds'}
     sort_by = st.selectbox("  ", list(sort_options.keys()), label_visibility="collapsed")
 
-# Get predictions
 data = predict_odds(df, selected_team, team_xg)
 
 if data.empty:
     st.warning("No players found for this team")
     st.stop()
 
-# Sort data
 data = data.sort_values(sort_options[sort_by])
 
-
-# Prepare display dataframe
 display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'Mins']].reset_index(drop=True)
 display_df = display_df.rename(columns={'Type': '+/-', 'Mins': 'min'})
 
-# Position colors from original
 POS_COLORS = {
     'ST': '#8F0000', 'CF': '#8F0000', 
     'RW': '#8D4E28', 'LW': '#8D4E28',
@@ -321,36 +481,34 @@ POS_COLORS = {
     'GK': '#9a8a5a'
 }
 
-# Color functions
 def color_goal_odds(val):
     if val < 4:
-        return 'color: #4ec9b0; font-weight: bold'  # hot - green
+        return 'color: #4ec9b0; font-weight: bold'
     elif val < 8:
-        return 'color: #dcdcaa'  # warm - yellow
+        return 'color: #dcdcaa'
     else:
-        return 'color: #888'  # cold - gray
+        return 'color: #888'
 
 def color_assist_odds(val):
     if val < 4:
-        return 'color: #4ec9b0; font-weight: bold'  # hot - green
+        return 'color: #4ec9b0; font-weight: bold'
     elif val < 8:
-        return 'color: #dcdcaa'  # warm - yellow
+        return 'color: #dcdcaa'
     else:
-        return 'color: #888'  # cold - gray
+        return 'color: #888'
 
 def color_type(val):
     if val >= 0.6:
-        return 'color: #dc3545'  # scorer - red
+        return 'color: #dc3545'
     elif val <= 0.4:
-        return 'color: #17a2b8'  # creator - blue
+        return 'color: #17a2b8'
     else:
-        return 'color: #6c757d'  # balanced - gray
+        return 'color: #6c757d'
 
 def color_position(val):
     bg_color = POS_COLORS.get(val, '#666')
     return f'background-color: {bg_color}; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px'
 
-# Style the dataframe with left alignment and colors
 styled_df = display_df.style.applymap(
     color_goal_odds, subset=['ATG']
 ).applymap(
@@ -373,7 +531,6 @@ styled_df = display_df.style.applymap(
     'min': '{:d}'
 })
 
-# Display with st.write (respects styling better)
 st.markdown(f'<div class="table-container">{styled_df.to_html()}</div>', unsafe_allow_html=True)
 
 # =============================================================================
@@ -451,7 +608,6 @@ def generate_tactical_profile(df_l, team):
     form_counts = df.groupby('formation')['match_id'].nunique().sort_values(ascending=False)
     top_formations = form_counts.head(2).index.tolist()
     
-    # Core table
     core_df = df[(df['is_starter'] == True) & (df['pos_simple'] != 'GK')]
     core_stats = core_df.groupby('player_name').agg({
         'match_id': 'nunique',
@@ -466,7 +622,6 @@ def generate_tactical_profile(df_l, team):
     
     cards_html = ""
     
-    # Last match card
     df_last = df[(df['match_id'] == last_match_id) & (df['is_starter'] == True)]
     if not df_last.empty:
         last_form = df_last['formation'].iloc[0]
@@ -488,7 +643,6 @@ def generate_tactical_profile(df_l, team):
         </div>
         """
     
-    # Formation cards
     for form in top_formations:
         df_form = df[(df['formation'] == form) & (df['is_starter'] == True)]
         count_used = form_counts[form]
@@ -510,7 +664,6 @@ def generate_tactical_profile(df_l, team):
         </div>
         """
     
-    # Core table rows
     core_rows = ""
     for _, row in core_stats.iterrows():
         g_val = f"<span style='color:#4ec9b0; font-weight:bold;'>{int(row['goals_in_match'])}</span>" if row['goals_in_match'] > 0 else "<span style='color:#444;'>-</span>"
@@ -550,7 +703,6 @@ def generate_tactical_profile(df_l, team):
     """
     return html
 
-# Load lineups and display tactical profile
 df_lineups = load_lineups_data()
 
 if not df_lineups.empty and selected_team in df_lineups['team'].values:
@@ -558,7 +710,6 @@ if not df_lineups.empty and selected_team in df_lineups['team'].values:
     
     tactical_html = generate_tactical_profile(df_lineups, selected_team)
     
-    # Wrap in full HTML with styles
     full_html = f"""
     <html>
     <head>
@@ -597,7 +748,6 @@ FOOTBALL_DATA_URL = "https://raw.githubusercontent.com/sznajdr/asttt/refs/heads/
 def load_football_status_data():
     try:
         df = pd.read_csv(FOOTBALL_DATA_URL)
-        # Keep only the columns we want
         cols_to_keep = ['competition', 'club', 'player', 'position', 'reason', 'matches_missed', 
                         'age', 'injury', 'yellow_cards', 'injured_since', 'injured_until', 
                         'data_type', 'since', 'until']
@@ -609,11 +759,9 @@ def load_football_status_data():
 
 st.markdown("---")
 
-# Load the data
 df_status = load_football_status_data()
 
 if not df_status.empty:
-    # Filter controls
     filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
     
     with filter_col1:
@@ -634,7 +782,6 @@ if not df_status.empty:
         default_types = ['suspensions'] if 'suspensions' in data_types else []
         selected_types = st.multiselect(" ", data_types, default=default_types, key="filter_type")
     
-    # Apply filters
     df_filtered = df_status.copy()
     
     if selected_competitions:
@@ -646,20 +793,17 @@ if not df_status.empty:
     if selected_types:
         df_filtered = df_filtered[df_filtered['data_type'].isin(selected_types)]
     
-    # Style for the status table
     def color_data_type(val):
         if val == 'suspensions':
-            return 'color: #dc3545; font-weight: bold'  # red
+            return 'color: #dc3545; font-weight: bold'
         elif val == 'risk_of_suspension':
-            return 'color: #ffc107; font-weight: bold'  # yellow
+            return 'color: #ffc107; font-weight: bold'
         elif val == 'injuries':
-            return 'color: #17a2b8; font-weight: bold'  # blue
+            return 'color: #17a2b8; font-weight: bold'
         return 'color: #888'
     
-    # Prepare display
     display_status_df = df_filtered.reset_index(drop=True)
     
-    # Style the dataframe
     styled_status_df = display_status_df.style.applymap(
         color_data_type, subset=['data_type']
     ).set_properties(**{
@@ -669,7 +813,6 @@ if not df_status.empty:
         {'selector': 'td', 'props': [('text-align', 'left')]}
     ])
     
-    # Display table
     st.markdown(f'<div class="table-container">{styled_status_df.to_html()}</div>', unsafe_allow_html=True)
 
 # =============================================================================
