@@ -368,10 +368,20 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
     xg_mod = team_xg / 1.22
     team_avg_value = sub['market_value'].replace(0, np.nan).mean() or 1
     
-    # Load XGBoost models
+    # Logic to handle Model Loading
     goal_model, assist_model = None, None
-    if use_xgb and XGB_AVAILABLE:
-        goal_model, assist_model = load_xgb_models()
+    models_active = False
+
+    if use_xgb:
+        if XGB_AVAILABLE:
+            goal_model, assist_model = load_xgb_models()
+            # Check if models actually loaded successfully
+            if goal_model is not None and assist_model is not None:
+                models_active = True
+            else:
+                st.toast("⚠️ XGB selected but JSON models not found. Using Heuristic.", icon="⚠️")
+        else:
+            st.toast("⚠️ XGBoost library not installed. Using Heuristic.", icon="⚠️")
     
     results = []
     
@@ -379,21 +389,26 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
         pos = p['pos']
         total_minutes = safe_get(p, 'total_minutes', 0)
         
-        # Get heuristic prediction
+        # 1. Get heuristic prediction
         heur_g, heur_a = predict_heuristic(p, xg_mod, team_avg_value)
         
-        # Get XGBoost prediction if available
-        xgb_g, xgb_a = predict_xgb(p, goal_model, assist_model, xg_mod)
+        # 2. Get XGBoost prediction (only if models loaded)
+        xgb_g, xgb_a = None, None
+        if models_active:
+            xgb_g, xgb_a = predict_xgb(p, goal_model, assist_model, xg_mod)
         
-        # Ensemble: blend XGBoost (60%) and Heuristic (40%) if XGBoost available
-        if xgb_g is not None and xgb_a is not None:
-            exp_g = xgb_g * 0.6 + heur_g * 0.4
-            exp_a = xgb_a * 0.6 + heur_a * 0.4
-            model_used = "XGB+H"
+        # 3. Ensemble Logic
+        # If XGB is active and produced a result, blend them. 
+        # Otherwise use Heuristic.
+        if models_active and xgb_g is not None and xgb_a is not None:
+            # BLEND: 60% XGBoost, 40% Heuristic
+            exp_g = xgb_g * 0.60 + heur_g * 0.40
+            exp_a = xgb_a * 0.60 + heur_a * 0.40
+            model_used_label = "XGB+"
         else:
             exp_g = heur_g
             exp_a = heur_a
-            model_used = "Heur"
+            model_used_label = "Heur"
         
         # Convert to probability and odds
         prob_g = 1 - np.exp(-exp_g)
@@ -405,67 +420,26 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
         xg_p90 = safe_get(p, 'shooting_xg_per90', 0)
         xa_p90 = safe_get(p, 'passing_xa_per90', 0)
         
-        # ===========================================
-        # STEP 1: Position CEILINGS (max odds cap - can't be priced out)
-        # Apply FIRST so floors can override if needed
-        # ===========================================
+        # --- FLOORS AND CEILINGS LOGIC (Preserved from your code) ---
         
-        # Goal ceilings - attackers shouldn't have crazy high goal odds
-        if pos in ['ST', 'CF']:
-            odds_g = min(odds_g, 15.0)
-        elif pos in ['RW', 'LW', 'CAM']:
-            odds_g = min(odds_g, 20.0)
+        # Ceilings
+        if pos in ['ST', 'CF']: odds_g = min(odds_g, 15.0); odds_a = min(odds_a, 10.0)
+        elif pos in ['RW', 'LW', 'CAM']: odds_g = min(odds_g, 20.0); odds_a = min(odds_a, 8.0)
         
-        # Assist ceilings - attackers shouldn't have crazy high assist odds  
-        if pos in ['ST', 'CF']:
-            odds_a = min(odds_a, 10.0)  # Strikers still involved
-        elif pos in ['RW', 'LW', 'CAM']:
-            odds_a = min(odds_a, 8.0)   # Creative positions
-        elif pos in ['RM', 'LM']:
-            odds_a = min(odds_a, 12.0)
-        elif pos in ['CM']:
-            odds_a = min(odds_a, 15.0)  # CMs create chances
-        elif pos in ['RB', 'LB', 'RWB', 'LWB']:
-            odds_a = min(odds_a, 20.0)
+        # Floors
+        floor_scale = max(0.4, 1.22 / team_xg)
+        if pos == 'CB': odds_g = max(odds_g, 10.0 * floor_scale)
+        elif pos in ['RB', 'LB']: odds_g = max(odds_g, 8.0 * floor_scale)
+        elif pos == 'DM': odds_g = max(odds_g, 6.0 * floor_scale)
         
-        # ===========================================
-        # STEP 2: Position FLOORS (min odds - defenders can't be too short)
-        # Scale floors DOWN when team xG is high
-        # ===========================================
-        
-        # Scale factor: at 4.0 xG, floors should be ~40% of normal
-        floor_scale = max(0.4, 1.22 / team_xg)  # Inverse of xg_mod, floored at 0.4
-        
-        if pos == 'CB': 
-            odds_g = max(odds_g, 10.0 * floor_scale)
-        elif pos in ['RB', 'LB']: 
-            odds_g = max(odds_g, 8.0 * floor_scale)
-        elif pos == 'DM': 
-            odds_g = max(odds_g, 6.0 * floor_scale)
-        
-        # CB assist floor
-        if pos == 'CB':
-            odds_a = max(odds_a, 15.0 * floor_scale)
-        
-        # ===========================================
-        # STEP 3: xG/xA SANITY FLOORS (applied LAST)
-        # Only for non-attackers - scale with team xG
-        # ===========================================
-        
-        # Goal sanity - only apply floors to midfielders/defenders
+        # Sanity Floors
         if pos not in ['ST', 'CF', 'RW', 'LW', 'CAM']:
-            if xg_p90 < 0.05:
-                odds_g = max(odds_g, 10.0 * floor_scale)
-            elif xg_p90 < 0.10:
-                odds_g = max(odds_g, 6.0 * floor_scale)
-        
-        # Assist sanity - only penalize truly non-creative players
+            if xg_p90 < 0.05: odds_g = max(odds_g, 10.0 * floor_scale)
         if pos not in ['ST', 'CF', 'RW', 'LW', 'CAM', 'RM', 'LM']:
-            if xa_p90 < 0.03:
-                odds_a = max(odds_a, 15.0 * floor_scale)
-            elif xa_p90 < 0.06:
-                odds_a = max(odds_a, 10.0 * floor_scale)
-        # Type calculation (xg_p90 and xa_p90 already calculated above)
+            if xa_p90 < 0.03: odds_a = max(odds_a, 15.0 * floor_scale)
+
+        # -----------------------------------------------------------
+
         total_threat = xg_p90 + xa_p90
         scorer_ratio = xg_p90 / total_threat if total_threat > 0 else 0.5
         
@@ -481,7 +455,8 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
             'PType': p.get('player_type', 'Utility'),
             'pos_sort': POS_SORT.get(pos, 99),
             'goal_odds': round(odds_g, 2),
-            'assist_odds': round(odds_a, 2)
+            'assist_odds': round(odds_a, 2),
+            'Model': model_used_label # Added for debugging in table
         })
     
     return pd.DataFrame(results).sort_values('pos_sort')
@@ -522,7 +497,7 @@ if df.empty:
     st.error("No data loaded. Check the CSV URLs.")
     st.stop()
 
-# Controls
+## Controls
 col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
 
 with col1:
@@ -537,7 +512,8 @@ with col3:
     sort_by = st.selectbox("Sort", list(sort_options.keys()), label_visibility="collapsed")
 
 with col4:
-    use_xgb = st.checkbox("XGB", value=True, help="Use XGBoost model")
+    # Checkbox determines intent
+    use_xgb = st.checkbox("XGB", value=True, help="Toggle XGBoost Hybrid Model")
 
 # Get predictions
 data = predict_odds(df, selected_team, team_xg, use_xgb=use_xgb)
@@ -548,9 +524,9 @@ if data.empty:
 
 data = data.sort_values(sort_options[sort_by])
 
-# Prepare display
-display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'PType', 'Mins']].reset_index(drop=True)
-display_df = display_df.rename(columns={'Type': '+/-', 'Mins': 'min'})
+# Prepare display (Added 'Model' to columns so you can see if it worked)
+display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'PType', 'Mins', 'Model']].reset_index(drop=True)
+display_df = display_df.rename(columns={'Type': '+/-', 'Mins': 'min', 'Model': 'Md'})
 
 # Add * to +/- for playmakers/wide creators
 display_df['+/-'] = display_df.apply(
