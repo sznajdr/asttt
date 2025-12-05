@@ -392,10 +392,22 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
         odds_g = np.clip((1 / max(prob_g, 0.01)) * 1.05, 1.30, 50.0)
         odds_a = np.clip((1 / max(prob_a, 0.01)) * 1.05, 1.40, 50.0)
         
-        # Position floors
+        # Position floors (minimum odds - don't price defenders too low)
         if pos in ['CB', 'RB', 'LB']: odds_g = max(odds_g, 8.0)
         if pos == 'DM': odds_g = max(odds_g, 6.0)
         if pos == 'CB': odds_a = max(odds_a, 12.0)
+        
+        # Position ceilings (maximum odds - don't price attackers too high)
+        if pos in ['ST', 'CF']:
+            odds_g = min(odds_g, 15.0)  # Strikers shouldn't be worse than 15.00 for goals
+            odds_a = min(odds_a, 12.0)  # Strikers shouldn't be worse than 12.00 for assists
+        elif pos in ['RW', 'LW', 'CAM']:
+            odds_g = min(odds_g, 20.0)
+            odds_a = min(odds_a, 10.0)  # Wingers/CAMs are assist machines
+        elif pos in ['RM', 'LM']:
+            odds_a = min(odds_a, 15.0)
+        elif pos in ['CM']:
+            odds_a = min(odds_a, 18.0)
         
         # Type calculation
         xg_p90 = safe_get(p, 'shooting_xg_per90', 0)
@@ -484,7 +496,14 @@ data = data.sort_values(sort_options[sort_by])
 
 # Prepare display
 display_df = data[['Player', 'Pos', 'ATG', 'AST', 'xG', 'xA', 'Type', 'PType', 'Mins']].reset_index(drop=True)
-display_df = display_df.rename(columns={'Type': '+/-', 'PType': 'Style', 'Mins': 'min'})
+display_df = display_df.rename(columns={'Type': '+/-', 'Mins': 'min'})
+
+# Add * to +/- for playmakers/wide creators
+display_df['+/-'] = display_df.apply(
+    lambda r: f"{r['+/-']:.2f}*" if r['PType'] in ['Playmaker', 'Wide Creator'] else f"{r['+/-']:.2f}", 
+    axis=1
+)
+display_df = display_df.drop(columns=['PType'])
 
 POS_COLORS = {
     'ST': '#8F0000', 'CF': '#8F0000', 'RW': '#8D4E28', 'LW': '#8D4E28',
@@ -504,17 +523,15 @@ def color_assist_odds(val):
     else: return 'color: #888'
 
 def color_type(val):
-    if val >= 0.6: return 'color: #dc3545'
-    elif val <= 0.4: return 'color: #17a2b8'
+    # Handle string values with * suffix
+    val_num = float(str(val).replace('*', ''))
+    if val_num >= 0.6: return 'color: #dc3545'
+    elif val_num <= 0.4: return 'color: #17a2b8'
     else: return 'color: #6c757d'
 
 def color_position(val):
     bg_color = POS_COLORS.get(val, '#666')
     return f'background-color: {bg_color}; color: white; font-weight: bold; padding: 2px 6px; border-radius: 4px'
-
-def color_player_type(val):
-    color = TYPE_COLORS.get(val, '#666')
-    return f'color: {color}; font-weight: bold'
 
 styled_df = display_df.style.applymap(
     color_goal_odds, subset=['ATG']
@@ -524,8 +541,6 @@ styled_df = display_df.style.applymap(
     color_type, subset=['+/-']
 ).applymap(
     color_position, subset=['Pos']
-).applymap(
-    color_player_type, subset=['Style']
 ).set_properties(**{
     'text-align': 'left'
 }).set_table_styles([
@@ -536,22 +551,10 @@ styled_df = display_df.style.applymap(
     'AST': '{:.2f}',
     'xG': '{:.2f}',
     'xA': '{:.2f}',
-    '+/-': '{:.2f}',
     'min': '{:d}'
 })
 
 st.markdown(f'<div class="table-container">{styled_df.to_html()}</div>', unsafe_allow_html=True)
-
-# =============================================================================
-# PLAYER TYPE LEGEND
-# =============================================================================
-
-st.markdown("---")
-legend_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px;'>"
-for ptype, color in TYPE_COLORS.items():
-    legend_html += f"<span style='color: {color}; font-weight: bold;'>● {ptype}</span>"
-legend_html += "</div>"
-st.markdown(legend_html, unsafe_allow_html=True)
 
 # =============================================================================
 # TACTICAL PROFILE SECTION (same as before)
