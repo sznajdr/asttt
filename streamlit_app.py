@@ -334,11 +334,21 @@ def predict_heuristic(player_row, team_xg_mod=1.0, team_avg_value=1):
     cross_bonus = 1.12 if pos in ['RW', 'LW', 'RM', 'LM', 'RWB', 'LWB', 'RB', 'LB'] and crosses_p90 > 1.5 else 1.0
     dribble_bonus = 1.08 if dribbles_p90 > 3 else 1.04 if dribbles_p90 > 1.5 else 1.0
     
+    # High xA bonus - reward creative players
+    xa_bonus = 1.0
+    if xa_p90 > 0.25:
+        xa_bonus = 1.25  # Elite creator
+    elif xa_p90 > 0.15:
+        xa_bonus = 1.15  # Very good
+    elif xa_p90 > 0.10:
+        xa_bonus = 1.08  # Good
+    
     trait_cc = safe_get(player_row, 'trait_chances_created', 0)
     trait_cc = trait_cc / 100 if trait_cc > 1 else trait_cc
     
-    exp_a = (base_a * 0.18 + blended_a * 0.28 + (cc_p90 / 3) * 0.22 + form_a * 0.18 + trait_cc * 0.14
-            ) * (team_xg_mod * 0.82) * cross_bonus * dribble_bonus
+    # Boosted xA weight (was 0.28, now 0.35)
+    exp_a = (base_a * 0.15 + blended_a * 0.35 + (cc_p90 / 3) * 0.20 + form_a * 0.16 + trait_cc * 0.14
+            ) * (team_xg_mod * 0.85) * cross_bonus * dribble_bonus * xa_bonus
     
     # Market value adjustment
     mv = safe_get(player_row, 'market_value', 0) or 1
@@ -408,13 +418,15 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
         
         # Assist ceilings - attackers shouldn't have crazy high assist odds  
         if pos in ['ST', 'CF']:
-            odds_a = min(odds_a, 12.0)
+            odds_a = min(odds_a, 10.0)  # Strikers still involved
         elif pos in ['RW', 'LW', 'CAM']:
-            odds_a = min(odds_a, 10.0)
+            odds_a = min(odds_a, 8.0)   # Creative positions
         elif pos in ['RM', 'LM']:
-            odds_a = min(odds_a, 15.0)
+            odds_a = min(odds_a, 12.0)
+        elif pos in ['CM']:
+            odds_a = min(odds_a, 15.0)  # CMs create chances
         elif pos in ['RB', 'LB', 'RWB', 'LWB']:
-            odds_a = min(odds_a, 25.0)
+            odds_a = min(odds_a, 20.0)
         
         # ===========================================
         # STEP 2: Position FLOORS (min odds - defenders can't be too short)
@@ -437,15 +449,20 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
         # If underlying stats are trash, odds can't be short
         # ===========================================
         
+        # Goal sanity - low xG means longer odds
         if xg_p90 < 0.08:
             odds_g = max(odds_g, 8.0)
         if xg_p90 < 0.15:
             odds_g = max(odds_g, 5.0)
-            
-        if xa_p90 < 0.05:
-            odds_a = max(odds_a, 10.0)
-        if xa_p90 < 0.10:
-            odds_a = max(odds_a, 6.0)
+        
+        # Assist sanity - low xA means longer odds
+        if xa_p90 < 0.03:
+            odds_a = max(odds_a, 12.0)  # Almost no creativity
+        elif xa_p90 < 0.08:
+            odds_a = max(odds_a, 8.0)   # Low creativity
+        
+        # Reward high xA - if xA is good, odds can be shorter
+        # (this happens naturally through the model, no override needed)
         # Type calculation (xg_p90 and xa_p90 already calculated above)
         total_threat = xg_p90 + xa_p90
         scorer_ratio = xg_p90 / total_threat if total_threat > 0 else 0.5
