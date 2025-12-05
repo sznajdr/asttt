@@ -7,7 +7,6 @@ Features:
 - Hybrid prediction: XGBoost + heuristic ensemble
 - All quick wins from enhanced version
 """
-import os
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -231,10 +230,10 @@ def load_lineups_data():
 # XGBOOST MODEL LOADING
 # =============================================================================
 
-@st.cache_resource
-import os  # <--- Make sure this is imported at the top
 
+import os
 @st.cache_resource
+
 def load_xgb_models():
     """Load pre-trained XGBoost models using absolute paths"""
     if not XGB_AVAILABLE:
