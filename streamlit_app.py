@@ -13,6 +13,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pickle
 import warnings
+import requests
+from io import BytesIO
+
 warnings.filterwarnings('ignore')
 
 # Try to import XGBoost (graceful fallback if not available)
@@ -21,6 +24,25 @@ try:
     XGB_AVAILABLE = True
 except ImportError:
     XGB_AVAILABLE = False
+
+# =============================================================================
+# CLASS DEFINITION (REQUIRED FOR PICKLE LOADING)
+# =============================================================================
+class GoalAssistModel:
+    """
+    Reconstructs the class structure expected by the pickle file.
+    Wraps the underlying model to provide predict_proba functionality.
+    """
+    def __init__(self, model=None, features=None, scaler=None):
+        self.model = model
+        self.features = features
+        self.scaler = scaler
+
+    def predict_proba(self, X):
+        # Delegates prediction to the internal XGBoost/Sklearn model
+        if hasattr(self, 'model') and self.model is not None:
+            return self.model.predict_proba(X)
+        return np.zeros((X.shape[0], 2)) # Fallback
 
 # =============================================================================
 # CONSTANTS
@@ -68,7 +90,7 @@ TYPE_COLORS = {
 STATS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_player_season_stats.csv"
 FEATURES_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/player_features.csv"
 LINEUPS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_lineups.csv"
-MODEL_URL = "https://raw.githubusercontent.com/sznajdr/asttt/refs/heads/main/football_model.pkl"
+MODEL_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/football_model.pkl"
 
 TACTIC_POS_COLORS = {
     'GK': '#e2b714', 'DEF': '#3794ff', 'MID': '#4ec9b0', 'FWD': '#e056fd', 'UNK': '#666'
@@ -206,9 +228,6 @@ def load_lineups_data():
 # =============================================================================
 # NEW MODEL LOADING (football_model.pkl)
 # =============================================================================
-
-import requests
-from io import BytesIO
 
 @st.cache_resource
 def load_football_model():
