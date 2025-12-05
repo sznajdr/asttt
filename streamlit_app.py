@@ -392,50 +392,60 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
         odds_g = np.clip((1 / max(prob_g, 0.01)) * 1.05, 1.30, 50.0)
         odds_a = np.clip((1 / max(prob_a, 0.01)) * 1.05, 1.40, 50.0)
         
-        # xG/xA sanity check - can't be too short with terrible underlying stats
         xg_p90 = safe_get(p, 'shooting_xg_per90', 0)
         xa_p90 = safe_get(p, 'passing_xa_per90', 0)
         
-        if xg_p90 < 0.10:
-            odds_g = max(odds_g, 6.0)  # Very low xG = at least 6.00
-        if xg_p90 < 0.05:
-            odds_g = max(odds_g, 10.0)  # Minimal xG = at least 10.00
-        if xa_p90 < 0.05:
-            odds_a = max(odds_a, 8.0)  # Minimal xA = at least 8.00
+        # ===========================================
+        # STEP 1: Position CEILINGS (max odds cap - can't be priced out)
+        # Apply FIRST so floors can override if needed
+        # ===========================================
         
-        # Position floors (minimum odds - don't price defenders too low for goals)
-        if pos in ['CB']: 
+        # Goal ceilings - attackers shouldn't have crazy high goal odds
+        if pos in ['ST', 'CF']:
+            odds_g = min(odds_g, 15.0)
+        elif pos in ['RW', 'LW', 'CAM']:
+            odds_g = min(odds_g, 20.0)
+        
+        # Assist ceilings - attackers shouldn't have crazy high assist odds  
+        if pos in ['ST', 'CF']:
+            odds_a = min(odds_a, 12.0)
+        elif pos in ['RW', 'LW', 'CAM']:
+            odds_a = min(odds_a, 10.0)
+        elif pos in ['RM', 'LM']:
+            odds_a = min(odds_a, 15.0)
+        elif pos in ['RB', 'LB', 'RWB', 'LWB']:
+            odds_a = min(odds_a, 25.0)
+        
+        # ===========================================
+        # STEP 2: Position FLOORS (min odds - defenders can't be too short)
+        # Apply SECOND so they override ceilings
+        # ===========================================
+        
+        if pos == 'CB': 
             odds_g = max(odds_g, 10.0)
         elif pos in ['RB', 'LB']: 
             odds_g = max(odds_g, 8.0)
         elif pos == 'DM': 
             odds_g = max(odds_g, 6.0)
         
-        # Position ceilings (maximum odds - don't price attackers too high)
-        # Goals
-        if pos in ['ST', 'CF']:
-            odds_g = min(odds_g, 12.0)  # Strikers always have a chance
-        elif pos in ['RW', 'LW']:
-            odds_g = min(odds_g, 15.0)
-        elif pos == 'CAM':
-            odds_g = min(odds_g, 18.0)
+        # CB assist floor
+        if pos == 'CB':
+            odds_a = max(odds_a, 15.0)
         
-        # Assists - attackers should never be priced out
-        if pos in ['ST', 'CF']:
-            odds_a = min(odds_a, 15.0)  # Strikers lay off balls
-        elif pos in ['RW', 'LW', 'CAM']:
-            odds_a = min(odds_a, 10.0)  # Wingers/CAMs are assist machines
-        elif pos in ['RM', 'LM']:
-            odds_a = min(odds_a, 12.0)
-        elif pos == 'CM':
-            odds_a = min(odds_a, 20.0)
-        elif pos in ['RB', 'LB', 'RWB', 'LWB']:
-            odds_a = min(odds_a, 25.0)  # Fullbacks cross
-        elif pos == 'CB':
-            odds_a = min(odds_a, 35.0)  # CBs can get lucky
-        elif pos == 'DM':
-            odds_a = min(odds_a, 30.0)
+        # ===========================================
+        # STEP 3: xG/xA SANITY FLOORS (applied LAST - these always win)
+        # If underlying stats are trash, odds can't be short
+        # ===========================================
         
+        if xg_p90 < 0.08:
+            odds_g = max(odds_g, 8.0)
+        if xg_p90 < 0.15:
+            odds_g = max(odds_g, 5.0)
+            
+        if xa_p90 < 0.05:
+            odds_a = max(odds_a, 10.0)
+        if xa_p90 < 0.10:
+            odds_a = max(odds_a, 6.0)
         # Type calculation (xg_p90 and xa_p90 already calculated above)
         total_threat = xg_p90 + xa_p90
         scorer_ratio = xg_p90 / total_threat if total_threat > 0 else 0.5
