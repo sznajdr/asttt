@@ -430,38 +430,41 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
         
         # ===========================================
         # STEP 2: Position FLOORS (min odds - defenders can't be too short)
-        # Apply SECOND so they override ceilings
+        # Scale floors DOWN when team xG is high
         # ===========================================
         
+        # Scale factor: at 4.0 xG, floors should be ~40% of normal
+        floor_scale = max(0.4, 1.22 / team_xg)  # Inverse of xg_mod, floored at 0.4
+        
         if pos == 'CB': 
-            odds_g = max(odds_g, 10.0)
+            odds_g = max(odds_g, 10.0 * floor_scale)
         elif pos in ['RB', 'LB']: 
-            odds_g = max(odds_g, 8.0)
+            odds_g = max(odds_g, 8.0 * floor_scale)
         elif pos == 'DM': 
-            odds_g = max(odds_g, 6.0)
+            odds_g = max(odds_g, 6.0 * floor_scale)
         
         # CB assist floor
         if pos == 'CB':
-            odds_a = max(odds_a, 15.0)
+            odds_a = max(odds_a, 15.0 * floor_scale)
         
         # ===========================================
         # STEP 3: xG/xA SANITY FLOORS (applied LAST)
-        # Only for non-attackers - attackers use position ceilings instead
+        # Only for non-attackers - scale with team xG
         # ===========================================
         
         # Goal sanity - only apply floors to midfielders/defenders
         if pos not in ['ST', 'CF', 'RW', 'LW', 'CAM']:
             if xg_p90 < 0.05:
-                odds_g = max(odds_g, 10.0)
+                odds_g = max(odds_g, 10.0 * floor_scale)
             elif xg_p90 < 0.10:
-                odds_g = max(odds_g, 6.0)
+                odds_g = max(odds_g, 6.0 * floor_scale)
         
         # Assist sanity - only penalize truly non-creative players
         if pos not in ['ST', 'CF', 'RW', 'LW', 'CAM', 'RM', 'LM']:
             if xa_p90 < 0.03:
-                odds_a = max(odds_a, 15.0)
+                odds_a = max(odds_a, 15.0 * floor_scale)
             elif xa_p90 < 0.06:
-                odds_a = max(odds_a, 10.0)
+                odds_a = max(odds_a, 10.0 * floor_scale)
         # Type calculation (xg_p90 and xa_p90 already calculated above)
         total_threat = xg_p90 + xa_p90
         scorer_ratio = xg_p90 / total_threat if total_threat > 0 else 0.5
