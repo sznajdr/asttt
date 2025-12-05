@@ -532,7 +532,7 @@ with col3:
 
 with col4:
     # Checkbox determines intent
-    use_xgb = st.checkbox("XGB", value=True, help="Toggle XGBoost Hybrid Model")
+    use_xgb = st.checkbox("xgb", value=False)
 
 # Get predictions
 data = predict_odds(df, selected_team, team_xg, use_xgb=use_xgb)
