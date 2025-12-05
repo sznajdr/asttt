@@ -445,24 +445,23 @@ def predict_odds(df, team, team_xg=1.5, use_xgb=True):
             odds_a = max(odds_a, 15.0)
         
         # ===========================================
-        # STEP 3: xG/xA SANITY FLOORS (applied LAST - these always win)
-        # If underlying stats are trash, odds can't be short
+        # STEP 3: xG/xA SANITY FLOORS (applied LAST)
+        # Only for non-attackers - attackers use position ceilings instead
         # ===========================================
         
-        # Goal sanity - low xG means longer odds
-        if xg_p90 < 0.08:
-            odds_g = max(odds_g, 8.0)
-        if xg_p90 < 0.15:
-            odds_g = max(odds_g, 5.0)
+        # Goal sanity - only apply floors to midfielders/defenders
+        if pos not in ['ST', 'CF', 'RW', 'LW', 'CAM']:
+            if xg_p90 < 0.05:
+                odds_g = max(odds_g, 10.0)
+            elif xg_p90 < 0.10:
+                odds_g = max(odds_g, 6.0)
         
-        # Assist sanity - low xA means longer odds
-        if xa_p90 < 0.03:
-            odds_a = max(odds_a, 12.0)  # Almost no creativity
-        elif xa_p90 < 0.08:
-            odds_a = max(odds_a, 8.0)   # Low creativity
-        
-        # Reward high xA - if xA is good, odds can be shorter
-        # (this happens naturally through the model, no override needed)
+        # Assist sanity - only penalize truly non-creative players
+        if pos not in ['ST', 'CF', 'RW', 'LW', 'CAM', 'RM', 'LM']:
+            if xa_p90 < 0.03:
+                odds_a = max(odds_a, 15.0)
+            elif xa_p90 < 0.06:
+                odds_a = max(odds_a, 10.0)
         # Type calculation (xg_p90 and xa_p90 already calculated above)
         total_threat = xg_p90 + xa_p90
         scorer_ratio = xg_p90 / total_threat if total_threat > 0 else 0.5
