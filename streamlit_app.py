@@ -16,7 +16,27 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="Goalscorer Odds", layout="wide")
 
 # =============================================================================
-# 1. CLASS DEFINITIONS & UNPICKLER
+# 1. HARDCODED FEATURE LIST (FALLBACK SAFETY NET)
+# =============================================================================
+# If the model file doesn't list its features, we use these.
+FALLBACK_FEATURES = [
+    'shooting_xg_per90', 'passing_xa_per90', 'form_5_goal_rate', 'form_5_assist_rate', 
+    'trait_goals', 'trait_chances_created', 'shotmap_overperformance', 'shotmap_conversion_rate',
+    'possession_touches_in_opposition_box_per90', 'form_5_minutes', 'form_10_minutes',
+    'career_goals_per_appearance', 'career_assists_per_appearance',
+    'shotmap_freekick_goals', 'shotmap_penalty_goals', 'shotmap_header_goals', 'shotmap_header_xg',
+    'defending_aerials_won_pct', 'passing_successful_crosses_per90', 'passing_cross_accuracy',
+    'possession_dribbles_per90', 'possession_fouls_won_per90',
+    'shotmap_inside_box_shots', 'shotmap_total_shots', 'shotmap_inside_box_xg', 'shotmap_avg_xg_per_shot',
+    'shooting_goals_percentile', 'passing_xa_percentile', 'passing_chances_created_per90',
+    'shooting_shots_per90', 'shooting_shots_on_target_per90', 'form_10_goal_rate', 'form_10_assist_rate',
+    'trait_shot_attempts', 'passing_accurate_passes_per90', 'passing_pass_accuracy',
+    'possession_dribbles_success_rate', 'passing_accurate_long_balls_per90', 'possession_touches_per90',
+    'market_value'
+]
+
+# =============================================================================
+# 2. CLASS DEFINITIONS & UNPICKLER
 # =============================================================================
 
 class ModelConfig:
@@ -45,7 +65,7 @@ class CustomUnpickler(pickle.Unpickler):
         return super().find_class(module, name)
 
 # =============================================================================
-# 2. CONSTANTS
+# 3. CONSTANTS
 # =============================================================================
 
 POS_MAP = {0: 'GK', 1: 'GK', 11: 'GK', 21: 'RB', 22: 'RB', 31: 'CB', 32: 'CB', 33: 'CB', 34: 'CB', 35: 'CB', 36: 'CB',
@@ -69,7 +89,7 @@ ASSIST_BASELINES = {'ST': 0.19, 'CF': 0.19, 'RW': 0.21, 'LW': 0.21, 'CAM': 0.22,
 POS_SORT = {'ST':1,'CF':2,'RW':3,'LW':4,'CAM':5,'RM':6,'LM':7,'CM':8,'DM':9,'RWB':10,'LWB':11,'RB':12,'LB':13,'CB':14,'GK':15}
 
 # =============================================================================
-# 3. DATA & MODEL LOADING
+# 4. DATA & MODEL LOADING
 # =============================================================================
 
 STATS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_player_season_stats.csv"
@@ -113,6 +133,13 @@ def load_data():
             try: return float(s)
             except: return 0
         df['market_value'] = df['market_value'].apply(parse_mv)
+        
+        # Ensure all fallback features exist in DF (fill with 0 if missing)
+        for f in FALLBACK_FEATURES:
+            if f not in df.columns:
+                df[f] = 0.0
+            else:
+                df[f] = pd.to_numeric(df[f], errors='coerce').fillna(0)
 
         return df[(df['total_minutes'] >= 1) & (df['pos'] != 'GK')].copy()
     except Exception as e:
@@ -130,7 +157,7 @@ def load_football_model():
         return None, str(e)
 
 # =============================================================================
-# 4. PREDICTION LOGIC
+# 5. PREDICTION LOGIC
 # =============================================================================
 
 def safe_get(row, col):
@@ -159,34 +186,50 @@ def predict_xgb(player_row, model_data, team_xg, debug):
             if debug: st.error("Models missing in pickle object.")
             return None, None
             
-        if not goal_feats: 
-            # Fallback: check if features are stored inside the model wrapper
-            if hasattr(goal_model, 'features'): goal_feats = goal_model.features
-            else:
-                if debug: st.error("No feature list found.")
-                return None, None
-
-        if not assist_feats:
-            if hasattr(assist_model, 'features'): assist_feats = assist_model.features
-
-        # 3. Build Feature Vector
-        X_g = np.array([safe_get(player_row, f) for f in goal_feats]).reshape(1, -1)
-        X_a = np.array([safe_get(player_row, f) for f in assist_feats]).reshape(1, -1)
+        # 3. Aggressive Feature Finding
+        if not goal_feats:
+            if hasattr(goal_model, 'feature_names_in_'): 
+                goal_feats = goal_model.feature_names_in_
+            elif hasattr(goal_model, 'get_booster'):
+                try: goal_feats = goal_model.get_booster().feature_names
+                except: pass
         
-        # 4. Scale (if Scaler exists)
+        if not assist_feats:
+            if hasattr(assist_model, 'feature_names_in_'): 
+                assist_feats = assist_model.feature_names_in_
+            elif hasattr(assist_model, 'get_booster'):
+                try: assist_feats = assist_model.get_booster().feature_names
+                except: pass
+
+        # 4. FINAL FALLBACK: If still no features, use the Hardcoded List
+        if not goal_feats or len(goal_feats) == 0:
+            if debug: st.warning("Using Hardcoded Fallback Features")
+            goal_feats = FALLBACK_FEATURES
+        
+        if not assist_feats or len(assist_feats) == 0:
+            assist_feats = FALLBACK_FEATURES
+
+        # 5. Build Feature Vector
+        # We only use features that actually exist in the dataframe
+        valid_goal_feats = [f for f in goal_feats if f in player_row.index]
+        X_g = np.array([safe_get(player_row, f) for f in valid_goal_feats]).reshape(1, -1)
+        
+        valid_assist_feats = [f for f in assist_feats if f in player_row.index]
+        X_a = np.array([safe_get(player_row, f) for f in valid_assist_feats]).reshape(1, -1)
+        
+        # 6. Scale (if Scaler exists)
         if scaler:
             try:
                 X_g = scaler.transform(X_g)
                 X_a = scaler.transform(X_a)
-            except Exception as e:
-                # If scaling fails (often feature count mismatch), try predicting raw
-                if debug: st.warning(f"Scaler failed: {e}. Trying raw.")
+            except:
+                pass # If scaling fails, run raw
         
-        # 5. Predict
+        # 7. Predict
         prob_g = goal_model.predict_proba(X_g)[0, 1]
         prob_a = assist_model.predict_proba(X_a)[0, 1]
         
-        # 6. Apply modifiers
+        # 8. Apply modifiers
         mod = team_xg / 1.5
         return (prob_g * mod, prob_a * mod * 0.9)
 
@@ -214,7 +257,7 @@ def predict_heuristic(player_row, team_xg_mod, avg_val):
     return g_exp, a_exp
 
 # =============================================================================
-# 5. MAIN APP
+# 6. MAIN APP
 # =============================================================================
 
 df = load_data()
@@ -234,6 +277,8 @@ if use_xgb:
         st.caption(f"✅ Model Loaded")
     else:
         st.caption(f"❌ Model Load Failed: {status_msg}")
+        if debug_mode and model_obj:
+            st.write("Object Dir:", dir(model_obj))
 
 # --- PROCESS ---
 sub = df[df['team'] == team].copy()
