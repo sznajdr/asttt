@@ -90,7 +90,7 @@ TYPE_COLORS = {
 STATS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_player_season_stats.csv"
 FEATURES_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/player_features.csv"
 LINEUPS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_lineups.csv"
-MODEL_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/football_model.pkl"
+MODEL_URL = "https://raw.githubusercontent.com/sznajdr/astt/refs/heads/main/football_model.pkl"
 
 TACTIC_POS_COLORS = {
     'GK': '#e2b714', 'DEF': '#3794ff', 'MID': '#4ec9b0', 'FWD': '#e056fd', 'UNK': '#666'
