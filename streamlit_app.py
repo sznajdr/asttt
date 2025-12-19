@@ -232,10 +232,10 @@ Perth Glory, Adelaide United, 1.40, 1.50
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
     c1, c2, c3, c4, c5 = st.columns([1, 1, 1, 1, 1])
     with c1: mkt_radio = st.radio("Market", ["Goal", "Assist"], horizontal=True, key="slate_mkt_choice")
-    with c2: max_odds_val = st.slider(" ", 1.5, 15.0, 9.0, 0.1)
+    with c2: max_odds_val = st.slider("odds", 1.5, 15.0, 9.0, 0.1)
     with c3: pk_filter = st.checkbox("PK")
-    with c4: val_filter = st.checkbox("-")
-    with c5: scan_btn = st.button(" ", type="primary", use_container_width=True)
+    with c4: val_filter = st.checkbox("vl")
+    with c5: scan_btn = st.button("-", type="primary", use_container_width=True)
 
     if scan_btn:
         all_res = []
