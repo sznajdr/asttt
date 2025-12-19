@@ -168,13 +168,62 @@ def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=100, lineups=
 # TABS
 # =============================================================================
 def render_slate(gm, am, gf, af, pp, tags, lineups):
-    default_slate = """Valencia CF, RCD Mallorca, 1.85, 1.55
-Borussia Dortmund, Borussia Monchengladbach, 2.35, 1.35
-Estoril Praia, SC Braga, 1.25, 2.25
-Bologna, Inter Milan, 1.55, 1.75
-Swansea, Wrexham, 1.75, 1.35
-Sporting Charleroi, Genk, 1.65, 1.65
-Kocaelispor, Antalyaspor, 1.85, 1.65"""
+    default_slate = """Erzgebirge Aue, FC Schweinfurt 05, 2.10, 1.30
+FC Hansa Rostock, 1. FC Saarbrücken, 2.25, 1.20
+RW Essen, SSV Ulm 1846, 1.70, 1.50
+VfL Osnabrück, VfB Stuttgart II, 1.20, 1.60
+Waldhof Mannheim, FC Ingolstadt, 1.55, 1.40
+1860 München, SC Verl, 1.35, 1.60
+TSV Havelse, Alemannia Aachen, 1.40, 1.65
+TSG Hoffenheim II, SV Wehen Wiesbaden, 1.55, 1.50
+FC Viktoria Köln, MSV Duisburg, 1.50, 1.60
+Newcastle, Chelsea, 1.40, 1.65
+Bournemouth, Burnley, 1.55, 1.35
+Brighton, Sunderland, 1.60, 1.20
+Man City, West Ham, 2.50, 0.95
+Wolves, Brentford, 1.45, 1.30
+Tottenham, Liverpool, 1.55, 1.70
+Everton, Arsenal, 1.20, 2.10
+Leeds, Crystal Palace, 1.35, 1.40
+Lazio, Cremonese, 1.85, 1.05
+Juventus, Roma, 1.65, 1.45
+Real Oviedo, Celta, 1.25, 1.50
+Levante, Real Sociedad, 1.20, 1.75
+Osasuna, Alavés, 1.45, 1.30
+Real Madrid, Sevilla, 2.10, 1.15
+Köln, Union Berlin, 1.35, 1.45
+Augsburg, Bremen, 1.40, 1.35
+HSV, Frankfurt, 1.25, 1.55
+Stuttgart, Hoffenheim, 1.60, 1.30
+Wolfsburg, Freiburg, 1.50, 1.35
+Leipzig, Leverkusen, 1.70, 1.65
+Gil Vicente, Rio Ave, 1.45, 1.35
+Estrela Amadora, Moreirense, 1.30, 1.40
+Heracles, Heerenveen, 1.35, 1.45
+Excelsior, Zwolle, 1.40, 1.50
+NEC, Ajax, 1.10, 2.00
+NAC Breda, Telstar, 1.55, 1.25
+Konyaspor, Kayserispor, 1.35, 1.40
+Eyüpspor, Fenerbahçe, 1.10, 2.10
+Beşiktaş, Rizespor, 1.65, 1.25
+Dender, Standard Liège, 1.20, 1.75
+Westerlo, La Louvière, 1.50, 1.15
+USG, Zulte Waregem, 1.70, 1.20
+Blackburn, Millwall, 1.45, 1.35
+Preston, Norwich, 1.40, 1.50
+Southampton, Coventry, 1.55, 1.30
+Bristol City, Middlesbrough, 1.35, 1.45
+Charlton, Oxford Utd, 1.50, 1.25
+Derby, Portsmouth, 1.40, 1.40
+Hull, West Brom, 1.30, 1.55
+Ipswich, Sheffield Wed, 1.60, 1.20
+QPR, Leicester, 1.25, 1.75
+Sheffield Utd, Birmingham, 1.45, 1.35
+Watford, Stoke, 1.50, 1.30
+Newcastle Jets, Sydney FC, 1.30, 1.65
+Melbourne City, Melbourne Victory, 1.55, 1.45
+Perth Glory, Adelaide United, 1.40, 1.50
+"""
 
     c1, c2 = st.columns([3, 1])
     with c1: slate_txt = st.text_area("", value=default_slate, height=100, label_visibility="collapsed")
