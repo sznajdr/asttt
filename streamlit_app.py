@@ -9,7 +9,7 @@ import joblib
 import json
 from pathlib import Path
 
-st.set_page_config(page_title="Goalscorer Odds", page_icon="⚽", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="-", page_icon="", layout="wide", initial_sidebar_state="collapsed")
 
 # Professional CSS
 st.markdown("""
