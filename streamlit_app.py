@@ -9,7 +9,7 @@ import joblib
 import json
 from pathlib import Path
 
-st.set_page_config(page_title="Goalscorer Odds", page_icon="⚽", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title=" ", page_icon=" ", layout="wide", initial_sidebar_state="collapsed")
 
 # Professional CSS
 st.markdown("""
@@ -344,7 +344,7 @@ def main():
     try: gm, am, gf, af, pp, meta, tags = load_models()
     except Exception as e: st.error(f"Load failed: {e}"); return
     lineups_data = load_lineups(); teams_list = sorted([t for t in pp['pf_team'].dropna().unique() if isinstance(t, str)])
-    st.markdown('<p class="main-header">Goalscorer Odds</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-header"> </p>', unsafe_allow_html=True)
     t1, t2, t3, t4, t5 = st.tabs(["Slate", "H2H", "Team", "Player", "Lineups"])
     with t1: render_slate(gm, am, gf, af, pp, tags, lineups_data)
     with t2: render_h2h(gm, am, gf, af, pp, tags, teams_list, lineups_data)
