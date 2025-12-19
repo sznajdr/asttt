@@ -1,337 +1,400 @@
+# =============================================================================
+# GOALSCORER ODDS PREDICTION - STREAMLIT APP
+# =============================================================================
+# 
+# Deploy to Streamlit Cloud:
+# 1. Push this file + model_artifacts/ to your GitHub repo
+# 2. Go to streamlit.io/cloud
+# 3. Connect your repo and deploy
+#
+# =============================================================================
+
+import streamlit as st
 import pandas as pd
 import numpy as np
-import streamlit as st
-import pickle
-import requests
-from io import BytesIO
-import warnings
-import sys
-
-# Suppress warnings
-warnings.filterwarnings('ignore')
-
-# Page Config
-st.set_page_config(page_title="Goalscorer Odds", layout="wide")
+import joblib
+import json
+import os
+from pathlib import Path
 
 # =============================================================================
-# 1. HARDCODED FEATURE LIST (FALLBACK SAFETY NET)
+# PAGE CONFIG
 # =============================================================================
-FALLBACK_FEATURES = [
-    'shooting_xg_per90', 'passing_xa_per90', 'form_5_goal_rate', 'form_5_assist_rate', 
-    'trait_goals', 'trait_chances_created', 'shotmap_overperformance', 'shotmap_conversion_rate',
-    'possession_touches_in_opposition_box_per90', 'form_5_minutes', 'form_10_minutes',
-    'career_goals_per_appearance', 'career_assists_per_appearance',
-    'shotmap_freekick_goals', 'shotmap_penalty_goals', 'shotmap_header_goals', 'shotmap_header_xg',
-    'defending_aerials_won_pct', 'passing_successful_crosses_per90', 'passing_cross_accuracy',
-    'possession_dribbles_per90', 'possession_fouls_won_per90',
-    'shotmap_inside_box_shots', 'shotmap_total_shots', 'shotmap_inside_box_xg', 'shotmap_avg_xg_per_shot',
-    'shooting_goals_percentile', 'passing_xa_percentile', 'passing_chances_created_per90',
-    'shooting_shots_per90', 'shooting_shots_on_target_per90', 'form_10_goal_rate', 'form_10_assist_rate',
-    'trait_shot_attempts', 'passing_accurate_passes_per90', 'passing_pass_accuracy',
-    'possession_dribbles_success_rate', 'passing_accurate_long_balls_per90', 'possession_touches_per90',
-    'market_value'
-]
+st.set_page_config(
+    page_title="Goalscorer Odds",
+    page_icon="⚽",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # =============================================================================
-# 2. CLASS DEFINITIONS & UNPICKLER
+# CONSTANTS
 # =============================================================================
-
-class ModelConfig:
-    def __init__(self):
-        self.goal_features = []
-        self.assist_features = []
-        self.scaler = None
-        self.goal_model = None
-        self.assist_model = None
-
-class GoalAssistModel:
-    def __init__(self, model=None, features=None, scaler=None):
-        self.model = model
-        self.features = features
-        self.scaler = scaler
-
-    def predict_proba(self, X):
-        if hasattr(self, 'model') and self.model is not None:
-            return self.model.predict_proba(X)
-        return np.zeros((X.shape[0], 2))
-
-class CustomUnpickler(pickle.Unpickler):
-    def find_class(self, module, name):
-        if module == "__main__":
-            return getattr(sys.modules[__name__], name)
-        return super().find_class(module, name)
-
-# =============================================================================
-# 3. CONSTANTS
-# =============================================================================
-
-POS_MAP = {0: 'GK', 1: 'GK', 11: 'GK', 21: 'RB', 22: 'RB', 31: 'CB', 32: 'CB', 33: 'CB', 34: 'CB', 35: 'CB', 36: 'CB',
-           41: 'LB', 42: 'LB', 51: 'DM', 52: 'DM', 53: 'DM', 61: 'RM', 62: 'CM', 63: 'CM', 64: 'CM', 65: 'CM', 66: 'LM',
-           71: 'RW', 72: 'CAM', 73: 'CAM', 74: 'CAM', 75: 'CAM', 76: 'LW', 81: 'RW', 82: 'CF', 83: 'ST', 84: 'ST', 
-           85: 'CF', 86: 'LW', 91: 'ST', 92: 'ST', 93: 'ST', 94: 'ST'}
-
-TEXT_POS_MAP = {
-    'centerdefensivemidfielder': 'DM', 'centerattackingmidfielder': 'CAM', 'centermidfielder': 'CM',
-    'leftmidfielder': 'LM', 'rightmidfielder': 'RM', 'leftwinger': 'LW', 'rightwinger': 'RW',
-    'leftwingback': 'LWB', 'rightwingback': 'RWB', 'leftback': 'LB', 'rightback': 'RB',
-    'centerback': 'CB', 'striker': 'ST', 'keeper_long': 'GK', 'keeper': 'GK',
-    'attacking': 'CAM', 'defensive': 'DM', 'winger': 'RW', 'forward': 'ST',
-    'midfield': 'CM', 'defender': 'CB', 'goalkeeper': 'GK'
+POS_GOAL_WEIGHT = {
+    'striker': 1.00, 'centerforward': 1.00, 'centerattackingmidfielder': 0.73,
+    'leftwinger': 0.68, 'rightwinger': 0.67, 'right_wing_back': 0.47,
+    'left_wing_back': 0.09, 'centermidfielder': 0.33, 'centerdefensivemidfielder': 0.26,
+    'rightmidfielder': 0.23, 'leftmidfielder': 0.22, 'leftback': 0.21,
+    'rightback': 0.20, 'centerback': 0.21, 'keeper': 0.00, 'keeper_long': 0.00,
 }
 
-GOAL_BASELINES = {'ST': 0.41, 'CF': 0.40, 'RW': 0.28, 'LW': 0.28, 'CAM': 0.23, 'RM': 0.12, 'LM': 0.12, 'CM': 0.08,
-                  'DM': 0.04, 'RWB': 0.03, 'LWB': 0.03, 'RB': 0.02, 'LB': 0.02, 'CB': 0.03, 'GK': 0.001}
-ASSIST_BASELINES = {'ST': 0.19, 'CF': 0.19, 'RW': 0.21, 'LW': 0.21, 'CAM': 0.22, 'RM': 0.16, 'LM': 0.16, 'CM': 0.14,
-                    'DM': 0.06, 'RWB': 0.09, 'LWB': 0.09, 'RB': 0.08, 'LB': 0.08, 'CB': 0.02, 'GK': 0.001}
-POS_SORT = {'ST':1,'CF':2,'RW':3,'LW':4,'CAM':5,'RM':6,'LM':7,'CM':8,'DM':9,'RWB':10,'LWB':11,'RB':12,'LB':13,'CB':14,'GK':15}
+POS_ASSIST_WEIGHT = {
+    'leftwinger': 1.00, 'right_wing_back': 0.65, 'rightwinger': 0.93,
+    'centerattackingmidfielder': 0.85, 'left_wing_back': 0.65, 'centermidfielder': 0.7,
+    'rightback': 0.5, 'leftback': 0.5, 'centerdefensivemidfielder': 0.52,
+    'leftmidfielder': 0.55, 'striker': 0.81, 'centerforward': 0.81,
+    'rightmidfielder': 0.55, 'centerback': 0.24, 'keeper': 0.02, 'keeper_long': 0.02,
+}
+
+POS_ABBREV = {
+    'striker': 'ST', 'centerforward': 'CF', 'leftwinger': 'LW', 'rightwinger': 'RW',
+    'centerattackingmidfielder': 'CAM', 'leftmidfielder': 'LM', 'rightmidfielder': 'RM',
+    'centermidfielder': 'CM', 'centerdefensivemidfielder': 'CDM', 'leftback': 'LB',
+    'rightback': 'RB', 'left_wing_back': 'LWB', 'right_wing_back': 'RWB',
+    'centerback': 'CB', 'keeper': 'GK', 'keeper_long': 'GK', 'goalkeeper': 'GK'
+}
+
+# Position bounds for odds
+POS_BOUNDS = {
+    'goal': {
+        'striker': (1.5, 50), 'centerforward': (1.5, 50), 'leftwinger': (2, 80),
+        'rightwinger': (2, 80), 'centerattackingmidfielder': (2.5, 100),
+        'centermidfielder': (5, 150), 'centerdefensivemidfielder': (8, 200),
+        'leftback': (10, 200), 'rightback': (10, 200), 'centerback': (10, 200),
+        'left_wing_back': (6, 150), 'right_wing_back': (6, 150),
+        'keeper': (100, 500), 'keeper_long': (100, 500),
+    },
+    'assist': {
+        'striker': (3, 80), 'centerforward': (3, 80), 'leftwinger': (2, 50),
+        'rightwinger': (2, 50), 'centerattackingmidfielder': (2, 50),
+        'centermidfielder': (3, 80), 'centerdefensivemidfielder': (5, 150),
+        'leftback': (5, 150), 'rightback': (5, 150), 'centerback': (15, 300),
+        'left_wing_back': (3, 100), 'right_wing_back': (3, 100),
+        'keeper': (150, 500), 'keeper_long': (150, 500),
+    }
+}
+
 
 # =============================================================================
-# 4. DATA & MODEL LOADING
+# MODEL WRAPPER
 # =============================================================================
+class CalibratedModel:
+    """Wrapper that combines raw model + isotonic calibrator"""
+    def __init__(self, model, calibrator):
+        self.model = model
+        self.calibrator = calibrator
+    
+    def predict_proba(self, X):
+        raw = self.model.predict_proba(X)[:, 1]
+        calibrated = self.calibrator.predict(raw)
+        return np.column_stack([1 - calibrated, calibrated])
 
-STATS_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/fotmob_multi_player_season_stats.csv"
-FEATURES_URL = "https://raw.githubusercontent.com/sznajdr/fb1/refs/heads/main/player_features.csv"
-MODEL_URL = "https://raw.githubusercontent.com/sznajdr/asttt/refs/heads/main/football_model.pkl"
 
-def _normalize_pos(row):
-    if 'position_id' in row and pd.notna(row['position_id']):
-        pid = int(row['position_id'])
-        if pid in POS_MAP: return POS_MAP[pid]
-    if 'primary_position_key' in row and pd.notna(row['primary_position_key']):
-        raw = str(row['primary_position_key']).lower().replace('-', '').replace(' ', '').replace('_', '')
-        for k, v in TEXT_POS_MAP.items():
-            if k == raw: return v
-        for k, v in TEXT_POS_MAP.items():
-            if k in raw: return v
-    return 'CM'
-
-@st.cache_data
-def load_data():
-    try:
-        df_f = pd.read_csv(FEATURES_URL)
-        df_s = pd.read_csv(STATS_URL)
-        
-        if 'total_minutes' in df_s.columns:
-            df_s['total_minutes'] = pd.to_numeric(df_s['total_minutes'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-        
-        df_s = df_s.sort_values('total_minutes', ascending=False).drop_duplicates('player_id')
-        cols = [c for c in ['player_id', 'player_name', 'team', 'total_minutes', 'position', 'position_id', 'primary_position_key', 'market_value'] if c in df_s.columns]
-        
-        df = pd.merge(df_s[cols], df_f, on='player_id', how='inner')
-        df['pos'] = df.apply(_normalize_pos, axis=1)
-        df['pos_sort'] = df['pos'].map(lambda x: POS_SORT.get(x, 99))
-        
-        # Market Value
-        def parse_mv(v):
-            if pd.isna(v): return 0
-            s = str(v).replace('€','').replace(',','').strip()
-            if 'M' in s: return float(s.replace('M',''))*1000000
-            if 'K' in s: return float(s.replace('K',''))*1000
-            try: return float(s)
-            except: return 0
-        df['market_value'] = df['market_value'].apply(parse_mv)
-        
-        # Ensure all fallback features exist in DF (fill with 0 if missing)
-        for f in FALLBACK_FEATURES:
-            if f not in df.columns:
-                df[f] = 0.0
-            else:
-                df[f] = pd.to_numeric(df[f], errors='coerce').fillna(0)
-
-        return df[(df['total_minutes'] >= 1) & (df['pos'] != 'GK')].copy()
-    except Exception as e:
-        st.error(f"Data Load Error: {e}")
-        return pd.DataFrame()
-
+# =============================================================================
+# LOAD MODELS (CACHED)
+# =============================================================================
 @st.cache_resource
-def load_football_model():
-    try:
-        response = requests.get(MODEL_URL, timeout=30)
-        response.raise_for_status()
-        model_data = CustomUnpickler(BytesIO(response.content)).load()
-        return model_data, "Success"
-    except Exception as e:
-        return None, str(e)
+def load_models():
+    """Load models from model_artifacts folder"""
+    artifact_dir = Path("model_artifacts")
+    
+    # Load goal model
+    goal_bundle = joblib.load(artifact_dir / "goal_model_bundle.pkl")
+    goal_model = CalibratedModel(goal_bundle['model'], goal_bundle['calibrator'])
+    goal_features = goal_bundle['features']
+    
+    # Load assist model
+    assist_bundle = joblib.load(artifact_dir / "assist_model_bundle.pkl")
+    assist_model = CalibratedModel(assist_bundle['model'], assist_bundle['calibrator'])
+    assist_features = assist_bundle['features']
+    
+    # Load player profile
+    player_profile = pd.read_pickle(artifact_dir / "player_profile.pkl")
+    
+    # Load metadata
+    with open(artifact_dir / "model_metadata.json", 'r') as f:
+        metadata = json.load(f)
+    
+    return goal_model, assist_model, goal_features, assist_features, player_profile, metadata
+
 
 # =============================================================================
-# 5. PREDICTION LOGIC
+# HELPER FUNCTIONS
 # =============================================================================
+def get_pos_abbrev(position):
+    return POS_ABBREV.get(str(position).lower().strip(), 'MF')
 
-def safe_get(row, col):
-    val = row.get(col, 0)
-    return float(val) if pd.notna(val) else 0.0
 
-def predict_xgb(player_row, model_data, team_xg, debug):
-    """Attempt XGB prediction, return None if fails"""
-    try:
-        # 1. Unpack Model Data
-        if isinstance(model_data, dict):
-            goal_model = model_data.get('goal_model')
-            assist_model = model_data.get('assist_model')
-            scaler = model_data.get('scaler')
-            goal_feats = model_data.get('goal_features', [])
-            assist_feats = model_data.get('assist_features', [])
-        else:
-            goal_model = getattr(model_data, 'goal_model', None)
-            assist_model = getattr(model_data, 'assist_model', None)
-            scaler = getattr(model_data, 'scaler', None)
-            goal_feats = getattr(model_data, 'goal_features', [])
-            assist_feats = getattr(model_data, 'assist_features', [])
+def prob_to_odds(prob):
+    return 1 / prob if prob > 0 else 500.0
 
-        # 2. Check Integrity
-        if not goal_model or not assist_model:
-            if debug: st.error("Models missing in pickle object.")
-            return None, None
+
+def apply_position_bounds(odds, position, market='goal'):
+    """Apply position-specific odds bounds"""
+    pos_lower = str(position).lower().strip()
+    bounds = POS_BOUNDS.get(market, {}).get(pos_lower, (1.5, 200))
+    return max(bounds[0], min(bounds[1], odds))
+
+
+def fuzzy_find_team(query, team_list):
+    """Find team by name (exact, substring, or fuzzy)"""
+    if not isinstance(query, str):
+        return None
+    
+    query_lower = query.lower().strip()
+    
+    # Exact match
+    for team in team_list:
+        if pd.notna(team) and isinstance(team, str):
+            if team.lower().strip() == query_lower:
+                return team
+    
+    # Substring match
+    for team in team_list:
+        if pd.notna(team) and isinstance(team, str):
+            if query_lower in team.lower():
+                return team
+    
+    # Reverse substring
+    for team in team_list:
+        if pd.notna(team) and isinstance(team, str):
+            if team.lower() in query_lower:
+                return team
+    
+    return None
+
+
+# =============================================================================
+# MARKET SCALING (from original notebook)
+# =============================================================================
+def apply_market_scaling(df, market_xg):
+    """Scale probabilities to match expected team goals"""
+    if df is None or len(df) == 0:
+        return df
+    
+    df = df.copy()
+    
+    # Goal scaling
+    g_probs = df['goal_prob'] / 100
+    g_lambdas = -np.log(1 - g_probs.clip(upper=0.99))
+    implied_goals = g_lambdas.sum()
+    
+    if implied_goals > 0 and market_xg > implied_goals:
+        xg_weights = (df['xg_per90'].fillna(0) + 0.05)
+        xg_weights = xg_weights / xg_weights.sum()
+        base_factor = market_xg / implied_goals
+        weight_boost = 1 + (xg_weights * len(df) - 1) * 0.2
+        new_lambdas = g_lambdas * base_factor * weight_boost
+        df['goal_prob'] = (1 - np.exp(-new_lambdas)) * 100
+    
+    # Assist scaling
+    a_probs = df['assist_prob'] / 100
+    a_lambdas = -np.log(1 - a_probs.clip(upper=0.99))
+    implied_assists = a_lambdas.sum()
+    target_assists = market_xg * 0.88
+    
+    if implied_assists > 0 and target_assists > implied_assists:
+        xa_weights = (df['xa_per90'].fillna(0) + 0.02)
+        xa_weights = xa_weights / xa_weights.sum()
+        base_factor = target_assists / implied_assists
+        weight_boost = 1 + (xa_weights * len(df) - 1) * 0.3
+        new_lambdas = a_lambdas * base_factor * weight_boost
+        df['assist_prob'] = (1 - np.exp(-new_lambdas)) * 100
+    
+    # Recalculate odds
+    df['goal_odds'] = df.apply(
+        lambda x: apply_position_bounds(prob_to_odds(x['goal_prob']/100), x['position'], 'goal'), axis=1)
+    df['assist_odds'] = df.apply(
+        lambda x: apply_position_bounds(prob_to_odds(x['assist_prob']/100), x['position'], 'assist'), axis=1)
+    
+    return df
+
+
+# =============================================================================
+# MAIN INFERENCE FUNCTION
+# =============================================================================
+def get_team_odds(team_name, market_xg, goal_model, assist_model, 
+                  goal_features, assist_features, player_profile, min_minutes=50):
+    """Generate goal/assist odds for all players on a team"""
+    
+    # Find team
+    teams = player_profile['pf_team'].dropna().unique()
+    matched_team = fuzzy_find_team(team_name, teams)
+    
+    if matched_team is None:
+        return None, f"Team '{team_name}' not found"
+    
+    # Get players
+    team_players = player_profile[player_profile['pf_team'] == matched_team].copy()
+    if 'sm_total_minutes' in team_players.columns:
+        team_players = team_players[team_players['sm_total_minutes'] >= min_minutes]
+    
+    if len(team_players) == 0:
+        return None, f"No players found for {matched_team}"
+    
+    results = []
+    
+    for _, player in team_players.iterrows():
+        position = player.get('pf_position', 'midfielder')
+        
+        if str(position) in ['0', 'nan', '', 'None', '0.0']:
+            continue
+        
+        # Build feature vectors
+        goal_row = {f: player.get(f, 0) for f in goal_features}
+        goal_row['match_is_starter'] = 1
+        goal_row['match_pos_goal_weight'] = POS_GOAL_WEIGHT.get(str(position).lower(), 0.3)
+        goal_row['pos_goal_weight'] = POS_GOAL_WEIGHT.get(str(position).lower(), 0.3)
+        
+        assist_row = {f: player.get(f, 0) for f in assist_features}
+        assist_row['match_is_starter'] = 1
+        assist_row['match_pos_assist_weight'] = POS_ASSIST_WEIGHT.get(str(position).lower(), 0.3)
+        assist_row['pos_assist_weight'] = POS_ASSIST_WEIGHT.get(str(position).lower(), 0.3)
+        
+        try:
+            X_goal = pd.DataFrame([goal_row])[goal_features].fillna(0)
+            X_assist = pd.DataFrame([assist_row])[assist_features].fillna(0)
             
-        # 3. Aggressive Feature Finding (Robust Conversion to List)
-        if hasattr(goal_model, 'feature_names_in_'): 
-            goal_feats = list(goal_model.feature_names_in_)
-        elif hasattr(goal_model, 'get_booster'):
-            try: goal_feats = list(goal_model.get_booster().feature_names)
-            except: pass
-        
-        if hasattr(assist_model, 'feature_names_in_'): 
-            assist_feats = list(assist_model.feature_names_in_)
-        elif hasattr(assist_model, 'get_booster'):
-            try: assist_feats = list(assist_model.get_booster().feature_names)
-            except: pass
+            goal_prob = goal_model.predict_proba(X_goal)[0, 1]
+            assist_prob = assist_model.predict_proba(X_assist)[0, 1]
+            
+            goal_odds = apply_position_bounds(prob_to_odds(goal_prob), position, 'goal')
+            assist_odds = apply_position_bounds(prob_to_odds(assist_prob), position, 'assist')
+            
+            results.append({
+                'name': player.get('pf_name', 'Unknown'),
+                'position': position,
+                'pos': get_pos_abbrev(position),
+                'goal_prob': round(goal_prob * 100, 1),
+                'goal_odds': round(goal_odds, 2),
+                'assist_prob': round(assist_prob * 100, 1),
+                'assist_odds': round(assist_odds, 2),
+                'xg_per90': round(player.get('sm_xg_per90', 0) or 0, 2),
+                'xa_per90': round(player.get('sm_xa_per90', 0) or 0, 2),
+            })
+        except Exception as e:
+            continue
+    
+    if not results:
+        return None, f"Could not generate predictions for {matched_team}"
+    
+    df = pd.DataFrame(results)
+    df = apply_market_scaling(df, market_xg)
+    
+    return df.sort_values('goal_odds'), matched_team
 
-        # 4. FINAL FALLBACK: If list is empty, use Hardcoded
-        if goal_feats is None or len(goal_feats) == 0:
-            if debug: st.warning("Using Hardcoded Fallback Features")
-            goal_feats = FALLBACK_FEATURES
-        
-        if assist_feats is None or len(assist_feats) == 0:
-            assist_feats = FALLBACK_FEATURES
 
-        # 5. Build Feature Vector
-        valid_goal_feats = [f for f in goal_feats if f in player_row.index]
-        X_g = np.array([safe_get(player_row, f) for f in valid_goal_feats]).reshape(1, -1)
-        
-        valid_assist_feats = [f for f in assist_feats if f in player_row.index]
-        X_a = np.array([safe_get(player_row, f) for f in valid_assist_feats]).reshape(1, -1)
-        
-        # 6. Scale (if Scaler exists)
-        if scaler:
-            try:
-                X_g = scaler.transform(X_g)
-                X_a = scaler.transform(X_a)
-            except:
-                pass # If scaling fails, run raw
-        
-        # 7. Predict
-        prob_g = goal_model.predict_proba(X_g)[0, 1]
-        prob_a = assist_model.predict_proba(X_a)[0, 1]
-        
-        # 8. Apply modifiers
-        mod = team_xg / 1.5
-        return (prob_g * mod, prob_a * mod * 0.9)
-
+# =============================================================================
+# STREAMLIT APP
+# =============================================================================
+def main():
+    # Load models
+    try:
+        goal_model, assist_model, goal_features, assist_features, player_profile, metadata = load_models()
     except Exception as e:
-        if debug: st.error(f"XGB Logic Error for {player_row.get('player_name', '?')}: {e}")
-        return None, None
-
-def predict_heuristic(player_row, team_xg_mod, avg_val):
-    pos = player_row['pos']
-    tm = safe_get(player_row, 'total_minutes')
+        st.error(f"Failed to load models: {e}")
+        st.info("Make sure model_artifacts/ folder is in the same directory as app.py")
+        return
     
-    xg = safe_get(player_row, 'shooting_xg_per90')
-    xa = safe_get(player_row, 'passing_xa_per90')
-    cg = safe_get(player_row, 'career_goals_per_appearance')
-    ca = safe_get(player_row, 'career_assists_per_appearance')
+    # Header
+    st.title("⚽ Goalscorer & Assist Odds")
+    st.markdown("*Predict anytime goalscorer and assist odds for football matches*")
     
-    w = min(tm/900, 1.0)
-    g_exp = (xg*w + cg*(1-w)) * team_xg_mod
-    a_exp = (xa*w + ca*(1-w)) * team_xg_mod
+    # Sidebar - Team Selection
+    st.sidebar.header("Match Setup")
     
-    # Simple Positional Baseline blend
-    g_exp = (g_exp * 0.8) + (GOAL_BASELINES.get(pos, 0.1) * 0.2)
-    a_exp = (a_exp * 0.8) + (ASSIST_BASELINES.get(pos, 0.1) * 0.2)
+    # Get unique teams
+    teams = sorted([t for t in player_profile['pf_team'].dropna().unique() if isinstance(t, str)])
     
-    return g_exp, a_exp
-
-# =============================================================================
-# 6. MAIN APP
-# =============================================================================
-
-df = load_data()
-model_obj, status_msg = load_football_model()
-
-# --- HEADER CONTROLS ---
-c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1, 1])
-with c1: team = st.selectbox("Team", sorted(df['team'].unique()), label_visibility="collapsed")
-with c2: txg = st.slider("Team xG", 0.5, 4.0, 1.5, 0.1, label_visibility="collapsed")
-with c3: sort = st.selectbox("Sort", ["ATG", "AST"], label_visibility="collapsed")
-with c4: use_xgb = st.checkbox("XGB", value=True)
-with c5: debug_mode = st.checkbox("Debug", value=False) # Enable to see why XGB fails
-
-# --- STATUS INDICATOR ---
-if use_xgb:
-    if "Success" in status_msg:
-        st.caption(f"✅ Model Loaded")
-    else:
-        st.caption(f"❌ Model Load Failed: {status_msg}")
-        if debug_mode and model_obj:
-            st.write("Object Dir:", dir(model_obj))
-
-# --- PROCESS ---
-sub = df[df['team'] == team].copy()
-if sub.empty: st.stop()
-
-xg_mod = txg / 1.22
-avg_val = sub['market_value'].mean()
-
-results = []
-for _, p in sub.iterrows():
-    # 1. Heuristic
-    h_g, h_a = predict_heuristic(p, xg_mod, avg_val)
-    h_pg = 1 - np.exp(-h_g)
-    h_pa = 1 - np.exp(-h_a)
+    # Team selection with search
+    home_team = st.sidebar.selectbox("Home Team", teams, index=0)
+    away_team = st.sidebar.selectbox("Away Team", teams, index=min(1, len(teams)-1))
     
-    # 2. XGB
-    x_pg, x_pa = None, None
-    method = "Heuristic"
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Expected Goals (xG)")
     
-    if use_xgb and "Success" in status_msg:
-        x_pg, x_pa = predict_xgb(p, model_obj, txg, debug_mode)
+    home_xg = st.sidebar.slider("Home xG", 0.5, 4.0, 1.8, 0.1)
+    away_xg = st.sidebar.slider("Away xG", 0.5, 4.0, 1.4, 0.1)
     
-    if x_pg is not None:
-        # Ensemble: 70% XGB, 30% Heuristic
-        final_pg = (x_pg * 0.7) + (h_pg * 0.3)
-        final_pa = (x_pa * 0.7) + (h_pa * 0.3)
-        method = "XGB+H"
-    else:
-        final_pg = h_pg
-        final_pa = h_pa
+    # Generate predictions button
+    if st.sidebar.button("🎯 Generate Odds", type="primary", use_container_width=True):
+        st.session_state['generate'] = True
     
-    # 3. Odds
-    odds_g = np.clip((1 / max(final_pg, 0.001)) * 1.05, 1.01, 50.0)
-    odds_a = np.clip((1 / max(final_pa, 0.001)) * 1.05, 1.01, 50.0)
+    # Model info in sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.caption(f"**Model Info**")
+    st.sidebar.caption(f"Goal AUC: {metadata['goal_model']['test_auc']:.3f}")
+    st.sidebar.caption(f"Assist AUC: {metadata['assist_model']['test_auc']:.3f}")
+    st.sidebar.caption(f"Trained: {metadata['data_info']['train_date_range']}")
     
-    results.append({
-        'Player': p.get('player_name', 'Unknown'),
-        'Pos': p['pos'],
-        'ATG': odds_g,
-        'AST': odds_a,
-        'Method': method,
-        'sort_idx': p['pos_sort']
-    })
+    # Main content
+    if st.session_state.get('generate', False) or True:  # Always show on load
+        
+        col1, col2 = st.columns(2)
+        
+        # Home team
+        with col1:
+            home_df, home_matched = get_team_odds(
+                home_team, home_xg, goal_model, assist_model,
+                goal_features, assist_features, player_profile
+            )
+            
+            if home_df is not None:
+                st.subheader(f"🏠 {home_matched}")
+                st.caption(f"Expected Goals: {home_xg}")
+                
+                # Goalscorers
+                st.markdown("**⚽ Anytime Goalscorer**")
+                goal_df = home_df.nsmallest(12, 'goal_odds')[['name', 'pos', 'goal_odds']].copy()
+                goal_df.columns = ['Player', 'Pos', 'Odds']
+                st.dataframe(goal_df, hide_index=True, use_container_width=True)
+                
+                # Assists
+                st.markdown("**🎯 Anytime Assist**")
+                assist_df = home_df.nsmallest(12, 'assist_odds')[['name', 'pos', 'assist_odds']].copy()
+                assist_df.columns = ['Player', 'Pos', 'Odds']
+                st.dataframe(assist_df, hide_index=True, use_container_width=True)
+            else:
+                st.error(home_matched)  # Error message
+        
+        # Away team
+        with col2:
+            away_df, away_matched = get_team_odds(
+                away_team, away_xg, goal_model, assist_model,
+                goal_features, assist_features, player_profile
+            )
+            
+            if away_df is not None:
+                st.subheader(f"✈️ {away_matched}")
+                st.caption(f"Expected Goals: {away_xg}")
+                
+                # Goalscorers
+                st.markdown("**⚽ Anytime Goalscorer**")
+                goal_df = away_df.nsmallest(12, 'goal_odds')[['name', 'pos', 'goal_odds']].copy()
+                goal_df.columns = ['Player', 'Pos', 'Odds']
+                st.dataframe(goal_df, hide_index=True, use_container_width=True)
+                
+                # Assists
+                st.markdown("**🎯 Anytime Assist**")
+                assist_df = away_df.nsmallest(12, 'assist_odds')[['name', 'pos', 'assist_odds']].copy()
+                assist_df.columns = ['Player', 'Pos', 'Odds']
+                st.dataframe(assist_df, hide_index=True, use_container_width=True)
+            else:
+                st.error(away_matched)
+        
+        # Full data expander
+        st.markdown("---")
+        with st.expander("📊 View Full Data"):
+            tab1, tab2 = st.tabs([f"{home_matched}", f"{away_matched}"])
+            
+            with tab1:
+                if home_df is not None:
+                    st.dataframe(home_df, hide_index=True, use_container_width=True)
+            
+            with tab2:
+                if away_df is not None:
+                    st.dataframe(away_df, hide_index=True, use_container_width=True)
 
-# --- DISPLAY ---
-res_df = pd.DataFrame(results).sort_values('sort_idx')
 
-if sort == "ATG": res_df = res_df.sort_values('ATG')
-else: res_df = res_df.sort_values('AST')
-
-def color_odds(v):
-    if v < 4.0: return 'color: #4ec9b0; font-weight: bold'
-    if v < 8.0: return 'color: #dcdcaa'
-    return 'color: #888'
-
-st.dataframe(
-    res_df[['Player', 'Pos', 'ATG', 'AST', 'Method']].style
-    .applymap(color_odds, subset=['ATG', 'AST'])
-    .format({'ATG': '{:.2f}', 'AST': '{:.2f}'}),
-    use_container_width=True,
-    hide_index=True
-)
+if __name__ == "__main__":
+    main()
