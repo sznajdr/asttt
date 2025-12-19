@@ -1,0 +1,102 @@
+{
+  "created_at": "2025-12-19T14:38:23.979068",
+  "goal_model": {
+    "config": "balanced",
+    "params": {
+      "max_iter": 200,
+      "max_depth": 4,
+      "learning_rate": 0.05,
+      "min_samples_leaf": 20,
+      "l2_regularization": 0.05,
+      "random_state": 42
+    },
+    "cv_auc_mean": 0.8009820134812872,
+    "cv_auc_std": 0.004254688997143482,
+    "cv_fold_scores": [
+      0.8023388379162575,
+      0.8080639710475761,
+      0.7963443397115336,
+      0.8012933100505433,
+      0.7968696086805254
+    ],
+    "val_auc": 0.8036260899312413,
+    "val_brier": 0.051295924336629314,
+    "test_auc": 0.7944366054318094,
+    "test_brier": 0.05120164192090962,
+    "n_features": 38
+  },
+  "assist_model": {
+    "config": "balanced",
+    "params": {
+      "max_iter": 200,
+      "max_depth": 4,
+      "learning_rate": 0.05,
+      "min_samples_leaf": 20,
+      "l2_regularization": 0.05,
+      "random_state": 42
+    },
+    "cv_auc_mean": 0.7576948947240086,
+    "cv_auc_std": 0.00627118398895655,
+    "cv_fold_scores": [
+      0.751295450213591,
+      0.7670983195711738,
+      0.7541570791329566,
+      0.7631868877105631,
+      0.7527367369917584
+    ],
+    "val_auc": 0.7658577839453616,
+    "val_brier": 0.03970958094840925,
+    "test_auc": 0.7537305993895599,
+    "test_brier": 0.03998867658059307,
+    "n_features": 33
+  },
+  "data_info": {
+    "total_samples": 928063,
+    "train_samples": 556837,
+    "calibration_samples": 139210,
+    "validation_samples": 139209,
+    "test_samples": 92807,
+    "train_date_range": "2020-08-28 to 2024-01-01",
+    "test_date_range": "2025-05-03 to 2025-12-14",
+    "goal_rate": 0.059531518873179944,
+    "assist_rate": 0.043178103210665654
+  },
+  "position_weights": {
+    "goal": {
+      "striker": 1.0,
+      "centerforward": 1.0,
+      "centerattackingmidfielder": 0.73,
+      "leftwinger": 0.68,
+      "rightwinger": 0.67,
+      "right_wing_back": 0.47,
+      "left_wing_back": 0.09,
+      "centermidfielder": 0.33,
+      "centerdefensivemidfielder": 0.26,
+      "rightmidfielder": 0.23,
+      "leftmidfielder": 0.22,
+      "leftback": 0.21,
+      "rightback": 0.2,
+      "centerback": 0.21,
+      "keeper": 0.0,
+      "keeper_long": 0.0
+    },
+    "assist": {
+      "leftwinger": 1.0,
+      "right_wing_back": 0.65,
+      "rightwinger": 0.93,
+      "centerattackingmidfielder": 0.85,
+      "left_wing_back": 0.65,
+      "centermidfielder": 0.7,
+      "rightback": 0.5,
+      "leftback": 0.5,
+      "centerdefensivemidfielder": 0.52,
+      "leftmidfielder": 0.55,
+      "striker": 0.81,
+      "centerforward": 0.81,
+      "rightmidfielder": 0.55,
+      "centerback": 0.24,
+      "keeper": 0.02,
+      "keeper_long": 0.02
+    }
+  }
+}
