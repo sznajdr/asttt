@@ -9,7 +9,7 @@ import joblib
 import json
 from pathlib import Path
 
-st.set_page_config(page_title="Goalscorer Odds", page_icon="⚽", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title=" ", page_icon=" ", layout="wide", initial_sidebar_state="collapsed")
 
 # Professional CSS
 st.markdown("""
@@ -76,12 +76,28 @@ def apply_position_bounds(odds, pos, mkt='goal'):
 def fuzzy_find_team(q, teams):
     if not isinstance(q, str): return None
     ql = q.lower().strip()
+    
+    # 1. Specific Alias / Priority Override
+    # If the user types "Inter", we likely want the Italian giant, not Miami.
+    if ql == "inter":
+        for t in teams:
+            if str(t).lower() in ["inter", "inter milan", "internazionale"]: return t
+
+    # 2. Exact Match
     for t in teams:
-        if pd.notna(t) and isinstance(t, str) and t.lower().strip() == ql: return t
-    for t in teams:
-        if pd.notna(t) and isinstance(t, str) and ql in t.lower(): return t
-    for t in teams:
-        if pd.notna(t) and isinstance(t, str) and t.lower() in ql: return t
+        if pd.notna(t) and str(t).lower().strip() == ql: return t
+    
+    # 3. "Starts With" Match - Prioritizing shortest string
+    # This ensures "Inter" matches "Inter" before "Inter Miami"
+    starts_matches = [t for t in teams if pd.notna(t) and str(t).lower().startswith(ql)]
+    if starts_matches:
+        return min(starts_matches, key=len)
+        
+    # 4. General Substring Match
+    substring_matches = [t for t in teams if pd.notna(t) and ql in str(t).lower()]
+    if substring_matches:
+        return min(substring_matches, key=len)
+
     return None
 
 def format_tags(tags, n=4):
@@ -114,13 +130,21 @@ def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=N
     teams = pp['pf_team'].dropna().unique()
     matched = fuzzy_find_team(team_name, teams)
     if not matched: return None, f"Team '{team_name}' not found"
+    
     tp = pp[pp['pf_team'] == matched].copy()
     if 'sm_total_minutes' in tp.columns: tp = tp[tp['sm_total_minutes'] >= min_min]
     if len(tp) == 0: return None, f"No players for {matched}"
     
     ls = {}
     if lineups is not None and not lineups.empty:
-        tl = lineups[lineups['team'].str.contains(team_name, case=False, na=False)]
+        # CRITICAL FIX: Use the 'matched' name from fuzzy_find, not the raw input
+        # to ensure the lineup filter matches the odds filter exactly.
+        tl = lineups[lineups['team'] == matched]
+        
+        # If strict match fails in lineups, try a small subset match
+        if tl.empty:
+            tl = lineups[lineups['team'].str.contains(matched, case=False, na=False)]
+            
         if not tl.empty:
             rm = tl['match_id'].unique()[-10:]
             rec = tl[tl['match_id'].isin(rm)]
@@ -157,6 +181,8 @@ def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=N
     df['rank_pos'] = df['position'].apply(lambda x: pr.get(str(x).lower().strip(), 8))
     df['value_gap'] = df['rank_pos'] - df['rank_model']
     return df.sort_values('goal_odds'), matched
+
+
 
 # =============================================================================
 # TABS
@@ -498,18 +524,33 @@ def render_lineups(lineups, tags_map):
                         st.markdown(f"{bar} {cand['player_name']} <br><small>{conf}% confidence</small>", unsafe_allow_html=True)
 
 def main():
-    try: gm, am, gf, af, pp, meta, tags = load_models()
-    except Exception as e: st.error(f"Failed to load: {e}"); return
+    try: 
+        gm, am, gf, af, pp, meta, tags = load_models()
+    except Exception as e: 
+        st.error(f"Failed to load: {e}")
+        return
+        
     lineups = load_lineups()
     teams = sorted([t for t in pp['pf_team'].dropna().unique() if isinstance(t, str)])
+    
     c1, c2 = st.columns([3, 1])
-    with c1: st.markdown('<p class="main-header">Goalscorer Odds</p>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<p style="color:#505050;font-size:0.75rem;text-align:right;margin-top:0.5rem;">AUC: {meta["goal_model"]["test_auc"]:.3f} / {meta["assist_model"]["test_auc"]:.3f}</p>', unsafe_allow_html=True)
+    with c1: 
+        st.markdown('<p class="main-header">Goalscorer Odds</p>', unsafe_allow_html=True)
+    with c2: 
+        st.markdown(f'<p style="color:#505050;font-size:0.75rem;text-align:right;margin-top:0.5rem;">AUC: {meta["goal_model"]["test_auc"]:.3f} / {meta["assist_model"]["test_auc"]:.3f}</p>', unsafe_allow_html=True)
+    
     t1, t2, t3, t4, t5 = st.tabs(["Slate", "H2H", "Team", "Player", "Lineups"])
-    with t1: render_slate(gm, am, gf, af, pp, tags, lineups)
-    with t2: render_h2h(gm, am, gf, af, pp, tags, teams, lineups)
-    with t3: render_team(gm, am, gf, af, pp, tags, teams, lineups)
-    with t4: render_player(gm, am, gf, af, pp, tags, lineups)
-    with t5: render_lineups(lineups, tags) # 'tags' is loaded from your model artifactswith t5: render_lineups(lineups)
+    
+    with t1: 
+        render_slate(gm, am, gf, af, pp, tags, lineups)
+    with t2: 
+        render_h2h(gm, am, gf, af, pp, tags, teams, lineups)
+    with t3: 
+        render_team(gm, am, gf, af, pp, tags, teams, lineups)
+    with t4: 
+        render_player(gm, am, gf, af, pp, tags, lineups)
+    with t5: 
+        render_lineups(lineups, tags)
 
-if __name__ == "__main__": main()
+if __name__ == "__main__": 
+    main()
