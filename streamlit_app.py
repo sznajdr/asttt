@@ -9,7 +9,7 @@ import joblib
 import json
 from pathlib import Path
 
-st.set_page_config(page_title=" ", page_icon=" ", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Goalscorer Odds", page_icon="⚽", layout="wide", initial_sidebar_state="collapsed")
 
 # Professional CSS
 st.markdown("""
@@ -76,35 +76,12 @@ def apply_position_bounds(odds, pos, mkt='goal'):
 def fuzzy_find_team(q, teams):
     if not isinstance(q, str): return None
     ql = q.lower().strip()
-    
-    # 1. Manual Overrides for common short names
-    overrides = {
-        "inter": "Inter",
-        "milan": "Milan",
-        "bayern": "Bayern München",
-        "dortmund": "Borussia Dortmund",
-        "city": "Man City",
-        "united": "Man Utd",
-        "bologna": "Bologna"
-    }
-    if ql in overrides:
-        target = overrides[ql].lower()
-        for t in teams:
-            if str(t).lower() == target: return t
-
-    # 2. Exact Match (The most important check)
     for t in teams:
-        if str(t).lower() == ql: return t
-            
-    # 3. Starts-With (Shortest string wins)
-    starts = [t for t in teams if str(t).lower().startswith(ql)]
-    if starts: return min(starts, key=len)
-        
-    # 4. Last Resort: Substring (Only if query is long enough to be specific)
-    if len(ql) > 4:
-        subs = [t for t in teams if ql in str(t).lower()]
-        if subs: return min(subs, key=len)
-
+        if pd.notna(t) and isinstance(t, str) and t.lower().strip() == ql: return t
+    for t in teams:
+        if pd.notna(t) and isinstance(t, str) and ql in t.lower(): return t
+    for t in teams:
+        if pd.notna(t) and isinstance(t, str) and t.lower() in ql: return t
     return None
 
 def format_tags(tags, n=4):
@@ -136,22 +113,14 @@ def apply_market_scaling(df, xg):
 def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=None):
     teams = pp['pf_team'].dropna().unique()
     matched = fuzzy_find_team(team_name, teams)
-    
-    if not matched: 
-        return None, f"Team '{team_name}' not found"
-    
+    if not matched: return None, f"Team '{team_name}' not found"
     tp = pp[pp['pf_team'] == matched].copy()
-    if 'sm_total_minutes' in tp.columns:
-        tp = tp[tp['sm_total_minutes'] > 0]
-    
-    if len(tp) == 0: return None, f"No active players for {matched}"
+    if 'sm_total_minutes' in tp.columns: tp = tp[tp['sm_total_minutes'] >= min_min]
+    if len(tp) == 0: return None, f"No players for {matched}"
     
     ls = {}
     if lineups is not None and not lineups.empty:
-        tl = lineups[lineups['team'] == matched]
-        if tl.empty:
-            tl = lineups[lineups['team'].str.contains(matched, case=False, na=False)]
-            
+        tl = lineups[lineups['team'].str.contains(team_name, case=False, na=False)]
         if not tl.empty:
             rm = tl['match_id'].unique()[-10:]
             rec = tl[tl['match_id'].isin(rm)]
@@ -159,133 +128,86 @@ def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=N
                 pr = rec[rec['player_id'] == pid]
                 if len(pr) > 0:
                     lm = pr.sort_values('match_id').iloc[-1]
-                    ls[pid] = {
-                        'starts': int(pr['is_starter'].sum()), 
-                        'apps': len(pr), 
-                        'started_last': bool(lm['is_starter'])
-                    }
+                    ls[pid] = {'starts': int(pr['is_starter'].sum()), 'apps': len(pr), 'started_last': bool(lm['is_starter'])}
     
     results = []
     for _, p in tp.iterrows():
         pos = p.get('pf_position', 'midfielder')
         if str(pos) in ['0', 'nan', '', 'None', '0.0']: continue
-        
         gr = {f: p.get(f, 0) if f in p.index else 0 for f in gf}
         gr['match_is_starter'] = 1; gr['match_pos_goal_weight'] = POS_GOAL_WEIGHT.get(str(pos).lower(), 0.3); gr['pos_goal_weight'] = gr['match_pos_goal_weight']
         ar = {f: p.get(f, 0) if f in p.index else 0 for f in af}
         ar['match_is_starter'] = 1; ar['match_pos_assist_weight'] = POS_ASSIST_WEIGHT.get(str(pos).lower(), 0.3); ar['pos_assist_weight'] = ar['match_pos_assist_weight']
-        
         try:
             Xg, Xa = pd.DataFrame([gr])[gf].fillna(0), pd.DataFrame([ar])[af].fillna(0)
             gp, ap = gm.predict_proba(Xg)[0,1], am.predict_proba(Xa)[0,1]
             go, ao = apply_position_bounds(prob_to_odds(gp), pos, 'goal'), apply_position_bounds(prob_to_odds(ap), pos, 'assist')
-            
             pid = p.get('player_id', 0)
             l = ls.get(pid, {'starts': 0, 'apps': 0, 'started_last': False})
-            
-            # Combine starts and apps into the 'st/app' column the Slate expects
-            star_icon = "*" if l['started_last'] else ""
-            st_app_str = f"{l['starts']}{star_icon}/{l['apps']}"
-
-            results.append({
-                'player_id': pid, 'name': p.get('pf_name', '?'), 'position': pos, 'pos': get_pos_abbrev(pos),
+            results.append({'player_id': pid, 'name': p.get('pf_name', '?'), 'position': pos, 'pos': get_pos_abbrev(pos),
                 'goal_prob': round(gp*100, 2), 'goal_odds': round(go, 2), 'assist_prob': round(ap*100, 2), 'assist_odds': round(ao, 2),
                 'xg_per90': round(p.get('sm_xg_per90', 0) or 0, 2), 'xa_per90': round(p.get('sm_xa_per90', 0) or 0, 2),
-                'st/app': st_app_str, 'started_last': l['started_last'], 'tags': tags.get(int(pid), [])
-            })
+                'starts': l['starts'], 'apps': l['apps'], 'started_last': l['started_last'], 'tags': tags.get(int(pid), [])})
         except: continue
-
-    if not results: return None, f"No valid players for {matched}"
+    if not results: return None, f"No predictions for {matched}"
     df = pd.DataFrame(results)
     df = apply_market_scaling(df, xg)
-    
-    # Calculate Value Gap for the Slate logic
     df['rank_model'] = df['goal_odds'].rank()
-    pr_rank = {'striker': 1, 'centerforward': 1, 'leftwinger': 2, 'rightwinger': 2, 'centerattackingmidfielder': 3}
-    df['rank_pos'] = df['position'].apply(lambda x: pr_rank.get(str(x).lower().strip(), 8))
+    pr = {'striker': 1, 'centerforward': 1, 'leftwinger': 2, 'rightwinger': 2, 'centerattackingmidfielder': 3, 'centermidfielder': 5}
+    df['rank_pos'] = df['position'].apply(lambda x: pr.get(str(x).lower().strip(), 8))
     df['value_gap'] = df['rank_pos'] - df['rank_model']
-    
     return df.sort_values('goal_odds'), matched
 
 # =============================================================================
 # TABS
 # =============================================================================
 def render_slate(gm, am, gf, af, pp, tags, lineups):
-    default = "Bologna, Inter, 1.55, 1.75"
+    default = "Liverpool, Chelsea, 2.15, 1.10\nBournemouth, Arsenal, 0.95, 1.95\nWolves, Man City, 0.65, 2.85"
     c1, c2 = st.columns([3, 1])
-    with c1: 
-        slate_input = st.text_area("Matches", value=default, height=100, label_visibility="collapsed")
+    with c1: slate = st.text_area("", value=default, height=100, label_visibility="collapsed", placeholder="Home, Away, H_xG, A_xG")
     with c2:
-        fname = st.text_input("Filename", value="slate_export")
-    
+        st.markdown('<p style="color:#606060;font-size:0.75rem;">Filename</p>', unsafe_allow_html=True)
+        fname = st.text_input("", value="slate_export", label_visibility="collapsed")
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    c1, c2, c3, c4, c5, c6 = st.columns([1, 1.5, 1, 1, 1, 1])
+    with c1: mkt = st.radio("", ["Goal", "Assist"], horizontal=True, label_visibility="collapsed")
+    with c2: maxo = st.slider("Max Odds", 2.0, 50.0, 10.0, 0.5, label_visibility="collapsed")
+    with c3: pk = st.checkbox("PK Only")
+    with c4: vf = st.checkbox("Value ≥2")
+    with c5: sl = st.checkbox("Started Last")
+    with c6: scan = st.button("Scan", type="primary")
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
     
-    cols = st.columns([1, 1.5, 1, 1, 1])
-    with cols[0]: mkt = st.radio("Mkt", ["Goal", "Assist"], horizontal=True)
-    with cols[1]: maxo = st.slider("Max Odds", 1.5, 50.0, 15.0)
-    with cols[2]: pk_only = st.checkbox("PK Only")
-    with cols[3]: val_only = st.checkbox("Value ≥2")
-    with cols[4]: scan_btn = st.button("SCAN SLATE", type="primary", use_container_width=True)
-
-    if scan_btn:
-        all_results = []
-        lines = [l.strip() for l in slate_input.strip().split('\n') if l.strip()]
-        
-        for line in lines:
-            parts = [p.strip() for p in line.split(',')]
-            if len(parts) < 4: continue
-            
-            try:
-                h_team, a_team, h_xg, a_xg = parts[0], parts[1], float(parts[2]), float(parts[3])
-            except ValueError:
-                continue
-            
-            # Process Home
-            h_df, h_name = get_team_odds(h_team, h_xg, gm, am, gf, af, pp, tags, lineups=lineups)
-            if h_df is not None:
-                h_df['matchup'] = f"{h_name} vs {a_team}"
-                h_df['team_xg'] = h_xg
-                all_results.append(h_df)
-                
-            # Process Away
-            a_df, a_name = get_team_odds(a_team, a_xg, gm, am, gf, af, pp, tags, lineups=lineups)
-            if a_df is not None:
-                a_df['matchup'] = f"{h_team} vs {a_name}"
-                a_df['team_xg'] = a_xg
-                all_results.append(a_df)
-
-        if all_results:
-            master_df = pd.concat(all_results, ignore_index=True)
-            target_col = 'goal_odds' if mkt == "Goal" else 'assist_odds'
-            
-            # Apply Filters
-            filt = master_df[master_df[target_col] <= maxo].copy()
-            if pk_only:
-                filt = filt[filt['tags'].apply(lambda x: 'PK' in x)]
-            if val_only:
-                filt = filt[filt['value_gap'] >= 2]
-                
-            filt = filt.sort_values(target_col)
-            
-            if not filt.empty:
-                st.write(f"Found {len(filt)} plays")
-                # Format Tags for display
-                filt['Tags'] = filt['tags'].apply(lambda x: ", ".join(x[:3]))
-                
-                display_cols = ['matchup', 'name', 'pos', 'team_xg', 'st/app', 'xg_per90', 'xa_per90', target_col, 'Tags']
-                st.dataframe(
-                    filt[display_cols].rename(columns={
-                        'matchup': 'Match', 
-                        'name': 'Player', 
-                        'team_xg': 'txG', 
-                        target_col: 'Odds'
-                    }),
-                    hide_index=True, use_container_width=True
-                )
-            else:
-                st.warning("No plays found with the current filters.")
-        else:
-            st.error("No valid teams found. Please check your spelling.")
+    if scan:
+        all_res = []
+        for line in slate.strip().split('\n'):
+            pts = [x.strip() for x in line.split(',')]
+            if len(pts) < 4: continue
+            try: ht, at, hx, ax = pts[0], pts[1], float(pts[2]), float(pts[3])
+            except: continue
+            for tm, xg in [(ht, hx), (at, ax)]:
+                df, m = get_team_odds(tm, xg, gm, am, gf, af, pp, tags, lineups=lineups)
+                if df is not None:
+                    df['matchup'] = f"{ht} vs {at}"; df['team'] = m; df['team_xg'] = xg
+                    all_res.append(df)
+        if all_res:
+            comb = pd.concat(all_res, ignore_index=True)
+            oc = 'goal_odds' if mkt == "Goal" else 'assist_odds'
+            filt = comb[(comb[oc] <= maxo) & (comb['pos'] != 'GK')].copy()
+            if pk: filt = filt[filt['tags'].apply(lambda x: 'PK' in x if x else False)]
+            if vf: filt = filt[filt['value_gap'] >= 2]
+            if sl: filt = filt[filt['started_last'] == True]
+            filt = filt.sort_values(oc)
+            st.markdown(f'<p style="color:#808080;font-size:0.8rem;">{len(filt)} plays | {mkt} | Max: {maxo}</p>', unsafe_allow_html=True)
+            rows = []
+            for _, r in filt.head(100).iterrows():
+                sta = f"{int(r['starts'])}{'*' if r['started_last'] else ''}/{int(r['apps'])}"
+                rows.append({'Match': r['matchup'][:30], 'Player': r['name'][:18], 'Pos': r['pos'], 'txG': r['team_xg'], 'st/app': sta, 'xG90': r['xg_per90'], 'xA90': r['xa_per90'], 'Odds': r[oc], 'Tags': format_tags(r['tags'], 3)})
+            if rows:
+                st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True, height=450)
+                c1, c2, c3 = st.columns([2, 1, 3])
+                with c2: st.download_button("Export CSV", filt.to_csv(index=False), f"{fname}.csv", "text/csv")
+        else: st.markdown('<p style="color:#606060;">No matches found.</p>', unsafe_allow_html=True)
 
 def render_h2h(gm, am, gf, af, pp, tags, teams, lineups):
     c1, c2, c3, c4 = st.columns([2, 1, 2, 1])
@@ -316,17 +238,11 @@ def render_h2h(gm, am, gf, af, pp, tags, teams, lineups):
 
 def render_team(gm, am, gf, af, pp, tags, teams, lineups):
     c1, c2, c3 = st.columns([2, 1, 1])
-    with c1: 
-        # Use a selectbox or a better filtered search
-        tm = st.selectbox("Team", teams, index=teams.index("Inter") if "Inter" in teams else 0)
-    with c2: 
-        xg = st.number_input("xG", 0.5, 4.5, 1.85, 0.05)
-    with c3: 
-        gen = st.button("Generate", type="primary")
-    
+    with c1: tm = st.selectbox("Team", teams, label_visibility="collapsed")
+    with c2: xg = st.number_input("xG", 0.5, 4.5, 1.85, 0.05, label_visibility="collapsed")
+    with c3: gen = st.button("Generate", type="primary", key="tg")
     if gen:
-        # The fuzzy_find_team inside get_team_odds will now handle 'Inter' correctly
-        df, matched_name = get_team_odds(tm, xg, gm, am, gf, af, pp, tags, min_min=100, lineups=lineups)
+        df, m = get_team_odds(tm, xg, gm, am, gf, af, pp, tags, min_min=100, lineups=lineups)
         if df is None: st.error("Team not found"); return
         df = df[df['pos'] != 'GK']
         st.markdown(f'<p style="color:#808080;font-size:0.8rem;">{m} | xG: {xg}</p>', unsafe_allow_html=True)
@@ -334,113 +250,39 @@ def render_team(gm, am, gf, af, pp, tags, teams, lineups):
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True, height=500)
 
 def render_player(gm, am, gf, af, pp, tags, lineups):
-    # Sort players for the selection box
     ap = sorted(pp['pf_name'].dropna().unique().tolist())
-    
     c1, c2, c3 = st.columns([2, 1, 1])
-    with c1: 
-        ps = st.selectbox("Select Player", ap, label_visibility="collapsed")
-    with c2: 
-        bxg = st.number_input("Team xG Baseline", 0.5, 4.0, 2.0, 0.1, label_visibility="collapsed")
-    with c3: 
-        an = st.button("Generate Deep Dive", type="primary", use_container_width=True)
-
-    if ps:
-        # 1. RETRIEVE PLAYER DATA
+    with c1: ps = st.selectbox("Player", ap, label_visibility="collapsed")
+    with c2: bxg = st.number_input("xG", 0.5, 4.0, 2.0, 0.1, label_visibility="collapsed")
+    with c3: an = st.button("Analyze", type="primary")
+    if an:
         pd_ = pp[pp['pf_name'] == ps]
-        if len(pd_) == 0: return
-        p = pd_.iloc[0]
-        pid = int(p.get('player_id', 0))
-        tm = p.get('pf_team', '?')
-        pos = p.get('pf_position', '?')
-        p_tags = tags.get(pid, [])
-        
-        # 2. HEADER SECTION
-        st.markdown(f"### 🔍 {ps.upper()}")
-        tag_html = " ".join([f'<span style="background-color: #1e3a5f; color: #e0e0e0; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; margin-right: 5px;">{t}</span>' for t in p_tags])
-        st.markdown(tag_html, unsafe_allow_html=True)
-        st.markdown(f'<p style="color:#808080; font-size:0.9rem;">{tm} | {pos}</p>', unsafe_allow_html=True)
-
-        # 3. MODEL PREDICTIONS (Odds)
+        if len(pd_) == 0: st.error("Not found"); return
+        p = pd_.iloc[0]; tm, pos, pid = p.get('pf_team', '?'), p.get('pf_position', '?'), p.get('player_id', 0)
+        tgs = tags.get(int(pid), [])
+        st.markdown(f'<p style="color:#e0e0e0;font-size:1.1rem;">{p["pf_name"]}</p>', unsafe_allow_html=True)
+        st.markdown(f'<p style="color:#606060;font-size:0.8rem;">{tm} | {pos} | {format_tags(tgs, 5)}</p>', unsafe_allow_html=True)
         df, _ = get_team_odds(tm, bxg, gm, am, gf, af, pp, tags, min_min=0, lineups=lineups)
         if df is not None:
             po = df[df['player_id'] == pid]
             if len(po) > 0:
                 o = po.iloc[0]
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Goal Odds", f"{o['goal_odds']:.2f}", help="Scaled to Team xG")
-                m2.metric("Goal %", f"{o['goal_prob']:.1f}%")
-                m3.metric("Assist Odds", f"{o['assist_odds']:.2f}")
-                m4.metric("Assist %", f"{o['assist_prob']:.1f}%")
-
-        # 4. INTELLIGENCE REPORT (Bull/Bear/Strategy)
-        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-        
-        # Logic for Strategy
-        xg90 = p.get('sm_xg_per90', 0) or 0
-        xa90 = p.get('sm_xa_per90', 0) or 0
-        shots90 = p.get('sm_shots_per90', 0) or 0
-        goals = p.get('goals', 0) or 0
-        xg_total = p.get('expected_goals_xg', 0) or 0
-        xg_diff = goals - xg_total
-
-        reasons_pos, reasons_neg = [], []
-        if xg90 >= 0.4: reasons_pos.append(f"Elite Goal Threat ({xg90:.2f} xG/90)")
-        if xa90 >= 0.25: reasons_pos.append(f"Elite Playmaker ({xa90:.2f} xA/90)")
-        if 'PK' in p_tags: reasons_pos.append("Primary Penalty Taker")
-        if xg_diff <= -2.0: reasons_pos.append(f"Positive Regression Candidate (Underperforming xG by {abs(xg_diff):.1f})")
-        
-        if xg90 < 0.1: reasons_neg.append("Low Goal Threat")
-        if xg_diff >= 3.0: reasons_neg.append(f"Finishing overperformance (Unsustainable +{xg_diff:.1f})")
-        if 'LATE_SUB' in p_tags: reasons_neg.append("High rotation/substitute risk")
-
-        # Strategy Definition
-        if 'PK' in p_tags and xg90 > 0.3: strategy = "💎 PRIME GOALSCORER (Volume + PKs)"
-        elif xa90 > 0.20 and xg90 < 0.15: strategy = "🎯 ASSIST SPECIALIST (Fade goals, target assists)"
-        elif shots90 > 3.0: strategy = "🔫 VOLUME SHOOTER (Look for Shots/SOT props)"
-        elif xg_diff <= -2.5: strategy = "🍀 DUE FOR A GOAL (Positive Regression)"
-        else: strategy = "📊 STANDARD USAGE (Wait for lineup confirmation)"
-
-        st.markdown(f"**💡 STRATEGY:** {strategy}")
-        col_bull, col_bear = st.columns(2)
-        with col_bull:
-            st.markdown('<p style="color:#4CAF50; font-size:0.8rem; font-weight:bold;">✅ BULL CASE</p>', unsafe_allow_html=True)
-            for r in reasons_pos: st.markdown(f"- <span style='font-size:0.8rem;'>{r}</span>", unsafe_allow_html=True)
-        with col_bear:
-            st.markdown('<p style="color:#f44336; font-size:0.8rem; font-weight:bold;">⚠️ BEAR CASE</p>', unsafe_allow_html=True)
-            for r in reasons_neg: st.markdown(f"- <span style='font-size:0.8rem;'>{r}</span>", unsafe_allow_html=True)
-
-        # 5. CORE PERFORMANCE METRICS
+                c1, c2, c3, c4 = st.columns(4)
+                with c1: st.metric("Goal Odds", f"{o['goal_odds']:.2f}")
+                with c2: st.metric("Goal %", f"{o['goal_prob']:.1f}%")
+                with c3: st.metric("Assist Odds", f"{o['assist_odds']:.2f}")
+                with c4: st.metric("Assist %", f"{o['assist_prob']:.1f}%")
         st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown('<p style="color:#606060;font-size:0.75rem;">SHOOTING</p>', unsafe_allow_html=True)
-            st.markdown(f"**Shots/90:** {shots90:.2f}<br>**xG/90:** {xg90:.2f}<br>**Box Touches/90:** {(p.get('sm_touches_in_box_per90',0)):.1f}", unsafe_allow_html=True)
+            st.markdown(f'<p style="color:#a0a0a0;font-size:0.8rem;">Shots: {int(p.get("sp_total_shots",0) or 0)}<br>Goals: {int(p.get("goals",0) or 0)}<br>xG: {(p.get("expected_goals_xg",0) or 0):.2f}</p>', unsafe_allow_html=True)
         with c2:
             st.markdown('<p style="color:#606060;font-size:0.75rem;">CREATION</p>', unsafe_allow_html=True)
-            st.markdown(f"**xA/90:** {xa90:.2f}<br>**Chances Created:** {int(p.get('chances_created',0))}<br>**Conversion:** {p.get('sm_assist_conversion',0)*100:.1f}%", unsafe_allow_html=True)
+            st.markdown(f'<p style="color:#a0a0a0;font-size:0.8rem;">Chances: {int(p.get("chances_created",0) or 0)}<br>Assists: {int(p.get("assists",0) or 0)}<br>xA: {(p.get("expected_assists_xa",0) or 0):.2f}</p>', unsafe_allow_html=True)
         with c3:
-            st.markdown('<p style="color:#606060;font-size:0.75rem;">CONTEXT</p>', unsafe_allow_html=True)
-            st.markdown(f"**In Box %:** {p.get('sp_inside_box_pct',0)*100:.0f}%<br>**Header %:** {p.get('sp_header_pct',0)*100:.0f}%<br>**Accuracy:** {p.get('sm_shot_accuracy',0)*100:.0f}%", unsafe_allow_html=True)
-
-        # 6. MATCH LOG (Last 10)
-        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-        st.markdown('<p style="color:#606060;font-size:0.75rem;">RECENT MATCH LOG (Form Data)</p>', unsafe_allow_html=True)
-        
-        if lineups is not None and not lineups.empty:
-            p_log = lineups[lineups['player_id'] == pid].copy()
-            if not p_log.empty:
-                # Add a "Start" icon for visibility
-                p_log['St'] = p_log['is_starter'].apply(lambda x: '✅' if x else '🔄')
-                # Sort by match_id or date if available
-                log_disp = p_log.tail(10).sort_values('match_id', ascending=False)[['match_id', 'St', 'minutes_played', 'goals_in_match', 'assists_in_match', 'rating']]
-                log_disp.columns = ['Match', 'St', 'Min', 'G', 'A', 'Rating']
-                st.dataframe(log_disp, hide_index=True, use_container_width=True)
-            else:
-                st.info("No recent match logs found for this player.")
-
-
-
+            st.markdown('<p style="color:#606060;font-size:0.75rem;">PER 90</p>', unsafe_allow_html=True)
+            st.markdown(f'<p style="color:#a0a0a0;font-size:0.8rem;">xG/90: {(p.get("sm_xg_per90",0) or 0):.2f}<br>xA/90: {(p.get("sm_xa_per90",0) or 0):.2f}<br>Shots/90: {(p.get("sm_shots_per90",0) or 0):.2f}</p>', unsafe_allow_html=True)
 
 # =============================================================================
 # UPDATED LINEUP INTEL SECTION
@@ -582,33 +424,18 @@ def render_lineups(lineups, tags_map):
                         st.markdown(f"{bar} {cand['player_name']} <br><small>{conf}% confidence</small>", unsafe_allow_html=True)
 
 def main():
-    try: 
-        gm, am, gf, af, pp, meta, tags = load_models()
-    except Exception as e: 
-        st.error(f"Failed to load: {e}")
-        return
-        
+    try: gm, am, gf, af, pp, meta, tags = load_models()
+    except Exception as e: st.error(f"Failed to load: {e}"); return
     lineups = load_lineups()
     teams = sorted([t for t in pp['pf_team'].dropna().unique() if isinstance(t, str)])
-    
     c1, c2 = st.columns([3, 1])
-    with c1: 
-        st.markdown('<p class="main-header">Goalscorer Odds</p>', unsafe_allow_html=True)
-    with c2: 
-        st.markdown(f'<p style="color:#505050;font-size:0.75rem;text-align:right;margin-top:0.5rem;">AUC: {meta["goal_model"]["test_auc"]:.3f} / {meta["assist_model"]["test_auc"]:.3f}</p>', unsafe_allow_html=True)
-    
+    with c1: st.markdown('<p class="main-header">Goalscorer Odds</p>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<p style="color:#505050;font-size:0.75rem;text-align:right;margin-top:0.5rem;">AUC: {meta["goal_model"]["test_auc"]:.3f} / {meta["assist_model"]["test_auc"]:.3f}</p>', unsafe_allow_html=True)
     t1, t2, t3, t4, t5 = st.tabs(["Slate", "H2H", "Team", "Player", "Lineups"])
-    
-    with t1: 
-        render_slate(gm, am, gf, af, pp, tags, lineups)
-    with t2: 
-        render_h2h(gm, am, gf, af, pp, tags, teams, lineups)
-    with t3: 
-        render_team(gm, am, gf, af, pp, tags, teams, lineups)
-    with t4: 
-        render_player(gm, am, gf, af, pp, tags, lineups)
-    with t5: 
-        render_lineups(lineups, tags)
+    with t1: render_slate(gm, am, gf, af, pp, tags, lineups)
+    with t2: render_h2h(gm, am, gf, af, pp, tags, teams, lineups)
+    with t3: render_team(gm, am, gf, af, pp, tags, teams, lineups)
+    with t4: render_player(gm, am, gf, af, pp, tags, lineups)
+    with t5: render_lineups(lineups, tags) # 'tags' is loaded from your model artifactswith t5: render_lineups(lineups)
 
-if __name__ == "__main__": 
-    main()
+if __name__ == "__main__": main()
