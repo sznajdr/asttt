@@ -77,26 +77,28 @@ def fuzzy_find_team(q, teams):
     if not isinstance(q, str): return None
     ql = q.lower().strip()
     
-    # 1. Specific Alias / Priority Override
-    # If the user types "Inter", we likely want the Italian giant, not Miami.
+    # 1. Handle the "Inter" Special Case explicitly
     if ql == "inter":
-        for t in teams:
-            if str(t).lower() in ["inter", "inter milan", "internazionale"]: return t
+        # Look for the shortest name that is exactly "Inter" or "Inter Milan"
+        inter_options = [t for t in teams if str(t).lower() in ["inter", "inter milan", "internazionale"]]
+        if inter_options:
+            return inter_options[0]
 
-    # 2. Exact Match
+    # 2. Exact Match Priority
     for t in teams:
-        if pd.notna(t) and str(t).lower().strip() == ql: return t
-    
-    # 3. "Starts With" Match - Prioritizing shortest string
-    # This ensures "Inter" matches "Inter" before "Inter Miami"
-    starts_matches = [t for t in teams if pd.notna(t) and str(t).lower().startswith(ql)]
+        if str(t).lower() == ql:
+            return t
+            
+    # 3. Starts-With Priority (Shortest wins)
+    # This ensures "Inter" matches "Inter" before "Inter Miami CF"
+    starts_matches = [t for t in teams if str(t).lower().startswith(ql)]
     if starts_matches:
         return min(starts_matches, key=len)
         
-    # 4. General Substring Match
-    substring_matches = [t for t in teams if pd.notna(t) and ql in str(t).lower()]
-    if substring_matches:
-        return min(substring_matches, key=len)
+    # 4. Substring Match (Shortest wins)
+    contains_matches = [t for t in teams if ql in str(t).lower()]
+    if contains_matches:
+        return min(contains_matches, key=len)
 
     return None
 
@@ -129,19 +131,25 @@ def apply_market_scaling(df, xg):
 def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=None):
     teams = pp['pf_team'].dropna().unique()
     matched = fuzzy_find_team(team_name, teams)
-    if not matched: return None, f"Team '{team_name}' not found"
     
+    if not matched: 
+        return None, f"Team '{team_name}' not found"
+    
+    # Use the 'matched' name for everything now
     tp = pp[pp['pf_team'] == matched].copy()
-    if 'sm_total_minutes' in tp.columns: tp = tp[tp['sm_total_minutes'] >= min_min]
-    if len(tp) == 0: return None, f"No players for {matched}"
+    
+    if 'sm_total_minutes' in tp.columns: 
+        tp = tp[tp['sm_total_minutes'] >= min_min]
+    
+    if len(tp) == 0: 
+        return None, f"No players for {matched}"
     
     ls = {}
     if lineups is not None and not lineups.empty:
-        # CRITICAL FIX: Use the 'matched' name from fuzzy_find, not the raw input
-        # to ensure the lineup filter matches the odds filter exactly.
+        # CRITICAL FIX: Match the lineup team EXACTLY to the found team name
         tl = lineups[lineups['team'] == matched]
         
-        # If strict match fails in lineups, try a small subset match
+        # Fallback for slight variations in lineup naming vs profile naming
         if tl.empty:
             tl = lineups[lineups['team'].str.contains(matched, case=False, na=False)]
             
@@ -152,35 +160,50 @@ def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=N
                 pr = rec[rec['player_id'] == pid]
                 if len(pr) > 0:
                     lm = pr.sort_values('match_id').iloc[-1]
-                    ls[pid] = {'starts': int(pr['is_starter'].sum()), 'apps': len(pr), 'started_last': bool(lm['is_starter'])}
+                    ls[pid] = {
+                        'starts': int(pr['is_starter'].sum()), 
+                        'apps': len(pr), 
+                        'started_last': bool(lm['is_starter'])
+                    }
     
     results = []
     for _, p in tp.iterrows():
         pos = p.get('pf_position', 'midfielder')
         if str(pos) in ['0', 'nan', '', 'None', '0.0']: continue
+        
+        # Prediction logic...
         gr = {f: p.get(f, 0) if f in p.index else 0 for f in gf}
-        gr['match_is_starter'] = 1; gr['match_pos_goal_weight'] = POS_GOAL_WEIGHT.get(str(pos).lower(), 0.3); gr['pos_goal_weight'] = gr['match_pos_goal_weight']
+        gr['match_is_starter'] = 1
+        gr['match_pos_goal_weight'] = POS_GOAL_WEIGHT.get(str(pos).lower(), 0.3)
+        gr['pos_goal_weight'] = gr['match_pos_goal_weight']
+        
         ar = {f: p.get(f, 0) if f in p.index else 0 for f in af}
-        ar['match_is_starter'] = 1; ar['match_pos_assist_weight'] = POS_ASSIST_WEIGHT.get(str(pos).lower(), 0.3); ar['pos_assist_weight'] = ar['match_pos_assist_weight']
+        ar['match_is_starter'] = 1
+        ar['match_pos_assist_weight'] = POS_ASSIST_WEIGHT.get(str(pos).lower(), 0.3)
+        ar['pos_assist_weight'] = ar['match_pos_assist_weight']
+        
         try:
             Xg, Xa = pd.DataFrame([gr])[gf].fillna(0), pd.DataFrame([ar])[af].fillna(0)
             gp, ap = gm.predict_proba(Xg)[0,1], am.predict_proba(Xa)[0,1]
             go, ao = apply_position_bounds(prob_to_odds(gp), pos, 'goal'), apply_position_bounds(prob_to_odds(ap), pos, 'assist')
+            
             pid = p.get('player_id', 0)
             l = ls.get(pid, {'starts': 0, 'apps': 0, 'started_last': False})
-            results.append({'player_id': pid, 'name': p.get('pf_name', '?'), 'position': pos, 'pos': get_pos_abbrev(pos),
+            
+            results.append({
+                'player_id': pid, 'name': p.get('pf_name', '?'), 'position': pos, 'pos': get_pos_abbrev(pos),
                 'goal_prob': round(gp*100, 2), 'goal_odds': round(go, 2), 'assist_prob': round(ap*100, 2), 'assist_odds': round(ao, 2),
                 'xg_per90': round(p.get('sm_xg_per90', 0) or 0, 2), 'xa_per90': round(p.get('sm_xa_per90', 0) or 0, 2),
-                'starts': l['starts'], 'apps': l['apps'], 'started_last': l['started_last'], 'tags': tags.get(int(pid), [])})
+                'starts': l['starts'], 'apps': l['apps'], 'started_last': l['started_last'], 'tags': tags.get(int(pid), [])
+            })
         except: continue
+
     if not results: return None, f"No predictions for {matched}"
     df = pd.DataFrame(results)
     df = apply_market_scaling(df, xg)
-    df['rank_model'] = df['goal_odds'].rank()
-    pr = {'striker': 1, 'centerforward': 1, 'leftwinger': 2, 'rightwinger': 2, 'centerattackingmidfielder': 3, 'centermidfielder': 5}
-    df['rank_pos'] = df['position'].apply(lambda x: pr.get(str(x).lower().strip(), 8))
-    df['value_gap'] = df['rank_pos'] - df['rank_model']
     return df.sort_values('goal_odds'), matched
+
+
 
 
 
@@ -264,11 +287,17 @@ def render_h2h(gm, am, gf, af, pp, tags, teams, lineups):
 
 def render_team(gm, am, gf, af, pp, tags, teams, lineups):
     c1, c2, c3 = st.columns([2, 1, 1])
-    with c1: tm = st.selectbox("Team", teams, label_visibility="collapsed")
-    with c2: xg = st.number_input("xG", 0.5, 4.5, 1.85, 0.05, label_visibility="collapsed")
-    with c3: gen = st.button("Generate", type="primary", key="tg")
+    with c1: 
+        # Use a selectbox or a better filtered search
+        tm = st.selectbox("Team", teams, index=teams.index("Inter") if "Inter" in teams else 0)
+    with c2: 
+        xg = st.number_input("xG", 0.5, 4.5, 1.85, 0.05)
+    with c3: 
+        gen = st.button("Generate", type="primary")
+    
     if gen:
-        df, m = get_team_odds(tm, xg, gm, am, gf, af, pp, tags, min_min=100, lineups=lineups)
+        # The fuzzy_find_team inside get_team_odds will now handle 'Inter' correctly
+        df, matched_name = get_team_odds(tm, xg, gm, am, gf, af, pp, tags, min_min=100, lineups=lineups)
         if df is None: st.error("Team not found"); return
         df = df[df['pos'] != 'GK']
         st.markdown(f'<p style="color:#808080;font-size:0.8rem;">{m} | xG: {xg}</p>', unsafe_allow_html=True)
