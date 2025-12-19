@@ -136,12 +136,11 @@ def apply_market_scaling(df, xg):
 def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=None):
     teams = pp['pf_team'].dropna().unique()
     matched = fuzzy_find_team(team_name, teams)
-    if not matched: return None, f"Team '{team_name}' not found"
     
-    # FILTER: Only players who actually played for this matched team
+    if not matched: 
+        return None, f"Team '{team_name}' not found"
+    
     tp = pp[pp['pf_team'] == matched].copy()
-    
-    # NEW: Filter out players with 0 minutes or 0 appearances to prevent "ghost" players
     if 'sm_total_minutes' in tp.columns:
         tp = tp[tp['sm_total_minutes'] > 0]
     
@@ -149,8 +148,10 @@ def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=N
     
     ls = {}
     if lineups is not None and not lineups.empty:
-        # Strict lineup matching
         tl = lineups[lineups['team'] == matched]
+        if tl.empty:
+            tl = lineups[lineups['team'].str.contains(matched, case=False, na=False)]
+            
         if not tl.empty:
             rm = tl['match_id'].unique()[-10:]
             rec = tl[tl['match_id'].isin(rm)]
@@ -158,23 +159,21 @@ def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=N
                 pr = rec[rec['player_id'] == pid]
                 if len(pr) > 0:
                     lm = pr.sort_values('match_id').iloc[-1]
-                    ls[pid] = {'starts': int(pr['is_starter'].sum()), 'apps': len(pr), 'started_last': bool(lm['is_starter'])}
+                    ls[pid] = {
+                        'starts': int(pr['is_starter'].sum()), 
+                        'apps': len(pr), 
+                        'started_last': bool(lm['is_starter'])
+                    }
     
     results = []
     for _, p in tp.iterrows():
         pos = p.get('pf_position', 'midfielder')
         if str(pos) in ['0', 'nan', '', 'None', '0.0']: continue
         
-        # Build features...
         gr = {f: p.get(f, 0) if f in p.index else 0 for f in gf}
-        gr['match_is_starter'] = 1
-        gr['match_pos_goal_weight'] = POS_GOAL_WEIGHT.get(str(pos).lower(), 0.3)
-        gr['pos_goal_weight'] = gr['match_pos_goal_weight']
-        
+        gr['match_is_starter'] = 1; gr['match_pos_goal_weight'] = POS_GOAL_WEIGHT.get(str(pos).lower(), 0.3); gr['pos_goal_weight'] = gr['match_pos_goal_weight']
         ar = {f: p.get(f, 0) if f in p.index else 0 for f in af}
-        ar['match_is_starter'] = 1
-        ar['match_pos_assist_weight'] = POS_ASSIST_WEIGHT.get(str(pos).lower(), 0.3)
-        ar['pos_assist_weight'] = ar['match_pos_assist_weight']
+        ar['match_is_starter'] = 1; ar['match_pos_assist_weight'] = POS_ASSIST_WEIGHT.get(str(pos).lower(), 0.3); ar['pos_assist_weight'] = ar['match_pos_assist_weight']
         
         try:
             Xg, Xa = pd.DataFrame([gr])[gf].fillna(0), pd.DataFrame([ar])[af].fillna(0)
@@ -184,29 +183,29 @@ def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=N
             pid = p.get('player_id', 0)
             l = ls.get(pid, {'starts': 0, 'apps': 0, 'started_last': False})
             
-            # CRITICAL: Only add if they have at least 1 app or 1 minute
-            if l['apps'] > 0 or p.get('sm_total_minutes', 0) > 0:
-                results.append({
-                    'player_id': pid, 'name': p.get('pf_name', '?'), 'position': pos, 'pos': get_pos_abbrev(pos),
-                    'goal_prob': round(gp*100, 2), 'goal_odds': round(go, 2), 'assist_prob': round(ap*100, 2), 'assist_odds': round(ao, 2),
-                    'xg_per90': round(p.get('sm_xg_per90', 0) or 0, 2), 'xa_per90': round(p.get('sm_xa_per90', 0) or 0, 2),
-                    'starts': l['starts'], 'apps': l['apps'], 'started_last': l['started_last'], 'tags': tags.get(int(pid), [])
-                })
+            # Combine starts and apps into the 'st/app' column the Slate expects
+            star_icon = "*" if l['started_last'] else ""
+            st_app_str = f"{l['starts']}{star_icon}/{l['apps']}"
+
+            results.append({
+                'player_id': pid, 'name': p.get('pf_name', '?'), 'position': pos, 'pos': get_pos_abbrev(pos),
+                'goal_prob': round(gp*100, 2), 'goal_odds': round(go, 2), 'assist_prob': round(ap*100, 2), 'assist_odds': round(ao, 2),
+                'xg_per90': round(p.get('sm_xg_per90', 0) or 0, 2), 'xa_per90': round(p.get('sm_xa_per90', 0) or 0, 2),
+                'st/app': st_app_str, 'started_last': l['started_last'], 'tags': tags.get(int(pid), [])
+            })
         except: continue
 
     if not results: return None, f"No valid players for {matched}"
     df = pd.DataFrame(results)
     df = apply_market_scaling(df, xg)
     
-    # Re-calculate Value Gap inside the specific team context
+    # Calculate Value Gap for the Slate logic
     df['rank_model'] = df['goal_odds'].rank()
     pr_rank = {'striker': 1, 'centerforward': 1, 'leftwinger': 2, 'rightwinger': 2, 'centerattackingmidfielder': 3}
     df['rank_pos'] = df['position'].apply(lambda x: pr_rank.get(str(x).lower().strip(), 8))
     df['value_gap'] = df['rank_pos'] - df['rank_model']
     
     return df.sort_values('goal_odds'), matched
-
-
 
 # =============================================================================
 # TABS
@@ -236,7 +235,10 @@ def render_slate(gm, am, gf, af, pp, tags, lineups):
             parts = [p.strip() for p in line.split(',')]
             if len(parts) < 4: continue
             
-            h_team, a_team, h_xg, a_xg = parts[0], parts[1], float(parts[2]), float(parts[3])
+            try:
+                h_team, a_team, h_xg, a_xg = parts[0], parts[1], float(parts[2]), float(parts[3])
+            except ValueError:
+                continue
             
             # Process Home
             h_df, h_name = get_team_odds(h_team, h_xg, gm, am, gf, af, pp, tags, lineups=lineups)
@@ -253,7 +255,7 @@ def render_slate(gm, am, gf, af, pp, tags, lineups):
                 all_results.append(a_df)
 
         if all_results:
-            master_df = pd.concat(all_results)
+            master_df = pd.concat(all_results, ignore_index=True)
             target_col = 'goal_odds' if mkt == "Goal" else 'assist_odds'
             
             # Apply Filters
@@ -265,16 +267,25 @@ def render_slate(gm, am, gf, af, pp, tags, lineups):
                 
             filt = filt.sort_values(target_col)
             
-            # UI Display
-            st.write(f"Found {len(filt)} plays")
-            display_cols = ['matchup', 'name', 'pos', 'team_xg', 'st/app', 'xg_per90', 'xa_per90', target_col, 'tags']
-            st.dataframe(
-                filt[display_cols].rename(columns={'matchup': 'Match', 'name': 'Player', 'team_xg': 'txG', target_col: 'Odds'}),
-                hide_index=True, use_container_width=True
-            )
-
-
-
+            if not filt.empty:
+                st.write(f"Found {len(filt)} plays")
+                # Format Tags for display
+                filt['Tags'] = filt['tags'].apply(lambda x: ", ".join(x[:3]))
+                
+                display_cols = ['matchup', 'name', 'pos', 'team_xg', 'st/app', 'xg_per90', 'xa_per90', target_col, 'Tags']
+                st.dataframe(
+                    filt[display_cols].rename(columns={
+                        'matchup': 'Match', 
+                        'name': 'Player', 
+                        'team_xg': 'txG', 
+                        target_col: 'Odds'
+                    }),
+                    hide_index=True, use_container_width=True
+                )
+            else:
+                st.warning("No plays found with the current filters.")
+        else:
+            st.error("No valid teams found. Please check your spelling.")
 
 def render_h2h(gm, am, gf, af, pp, tags, teams, lineups):
     c1, c2, c3, c4 = st.columns([2, 1, 2, 1])
