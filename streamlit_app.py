@@ -117,7 +117,7 @@ def apply_market_scaling(df, xg):
     df['assist_odds'] = df.apply(lambda x: apply_position_bounds(prob_to_odds(x['assist_prob']/100), x['position'], 'assist'), axis=1)
     return df
 
-def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=None):
+def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=100, lineups=None):
     teams = pp['pf_team'].dropna().unique()
     matched = fuzzy_find_team(team_name, teams)
     if not matched: return None, f"Team '{team_name}' not found"
