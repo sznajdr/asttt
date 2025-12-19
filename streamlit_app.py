@@ -168,13 +168,13 @@ def get_team_odds(team_name, xg, gm, am, gf, af, pp, tags, min_min=50, lineups=N
 # TABS
 # =============================================================================
 def render_slate(gm, am, gf, af, pp, tags, lineups):
-    default_slate = """ Valencia CF, RCD Mallorca, 1.85, 1.55
-                        Borussia Dortmund, Borussia Monchengladbach, 2.35, 1.35
-                        Estoril Praia, SC Braga, 1.25, 2.25
-                        Bologna, Inter Milan, 1.55, 1.75
-                        Swansea, Wrexham, 1.75, 1.35
-                        Sporting Charleroi, Genk, 1.65, 1.65
-                        Kocaelispor, Antalyaspor, 1.85, 1.65"""
+    default_slate = """Valencia CF, RCD Mallorca, 1.85, 1.55
+Borussia Dortmund, Borussia Monchengladbach, 2.35, 1.35
+Estoril Praia, SC Braga, 1.25, 2.25
+Bologna, Inter Milan, 1.55, 1.75
+Swansea, Wrexham, 1.75, 1.35
+Sporting Charleroi, Genk, 1.65, 1.65
+Kocaelispor, Antalyaspor, 1.85, 1.65"""
 
     c1, c2 = st.columns([3, 1])
     with c1: slate_txt = st.text_area("", value=default_slate, height=100, label_visibility="collapsed")
