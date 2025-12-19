@@ -436,6 +436,6 @@ def main():
     with t2: render_h2h(gm, am, gf, af, pp, tags, teams, lineups)
     with t3: render_team(gm, am, gf, af, pp, tags, teams, lineups)
     with t4: render_player(gm, am, gf, af, pp, tags, lineups)
-    with t5: render_lineups(lineups)
+    with t5: render_lineups(lineups, tags) # 'tags' is loaded from your model artifactswith t5: render_lineups(lineups)
 
 if __name__ == "__main__": main()
