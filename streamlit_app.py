@@ -250,39 +250,113 @@ def render_team(gm, am, gf, af, pp, tags, teams, lineups):
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True, height=500)
 
 def render_player(gm, am, gf, af, pp, tags, lineups):
+    # Sort players for the selection box
     ap = sorted(pp['pf_name'].dropna().unique().tolist())
+    
     c1, c2, c3 = st.columns([2, 1, 1])
-    with c1: ps = st.selectbox("Player", ap, label_visibility="collapsed")
-    with c2: bxg = st.number_input("xG", 0.5, 4.0, 2.0, 0.1, label_visibility="collapsed")
-    with c3: an = st.button("Analyze", type="primary")
-    if an:
+    with c1: 
+        ps = st.selectbox("Select Player", ap, label_visibility="collapsed")
+    with c2: 
+        bxg = st.number_input("Team xG Baseline", 0.5, 4.0, 2.0, 0.1, label_visibility="collapsed")
+    with c3: 
+        an = st.button("Generate Deep Dive", type="primary", use_container_width=True)
+
+    if ps:
+        # 1. RETRIEVE PLAYER DATA
         pd_ = pp[pp['pf_name'] == ps]
-        if len(pd_) == 0: st.error("Not found"); return
-        p = pd_.iloc[0]; tm, pos, pid = p.get('pf_team', '?'), p.get('pf_position', '?'), p.get('player_id', 0)
-        tgs = tags.get(int(pid), [])
-        st.markdown(f'<p style="color:#e0e0e0;font-size:1.1rem;">{p["pf_name"]}</p>', unsafe_allow_html=True)
-        st.markdown(f'<p style="color:#606060;font-size:0.8rem;">{tm} | {pos} | {format_tags(tgs, 5)}</p>', unsafe_allow_html=True)
+        if len(pd_) == 0: return
+        p = pd_.iloc[0]
+        pid = int(p.get('player_id', 0))
+        tm = p.get('pf_team', '?')
+        pos = p.get('pf_position', '?')
+        p_tags = tags.get(pid, [])
+        
+        # 2. HEADER SECTION
+        st.markdown(f"### 🔍 {ps.upper()}")
+        tag_html = " ".join([f'<span style="background-color: #1e3a5f; color: #e0e0e0; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; margin-right: 5px;">{t}</span>' for t in p_tags])
+        st.markdown(tag_html, unsafe_allow_html=True)
+        st.markdown(f'<p style="color:#808080; font-size:0.9rem;">{tm} | {pos}</p>', unsafe_allow_html=True)
+
+        # 3. MODEL PREDICTIONS (Odds)
         df, _ = get_team_odds(tm, bxg, gm, am, gf, af, pp, tags, min_min=0, lineups=lineups)
         if df is not None:
             po = df[df['player_id'] == pid]
             if len(po) > 0:
                 o = po.iloc[0]
-                c1, c2, c3, c4 = st.columns(4)
-                with c1: st.metric("Goal Odds", f"{o['goal_odds']:.2f}")
-                with c2: st.metric("Goal %", f"{o['goal_prob']:.1f}%")
-                with c3: st.metric("Assist Odds", f"{o['assist_odds']:.2f}")
-                with c4: st.metric("Assist %", f"{o['assist_prob']:.1f}%")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Goal Odds", f"{o['goal_odds']:.2f}", help="Scaled to Team xG")
+                m2.metric("Goal %", f"{o['goal_prob']:.1f}%")
+                m3.metric("Assist Odds", f"{o['assist_odds']:.2f}")
+                m4.metric("Assist %", f"{o['assist_prob']:.1f}%")
+
+        # 4. INTELLIGENCE REPORT (Bull/Bear/Strategy)
+        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+        
+        # Logic for Strategy
+        xg90 = p.get('sm_xg_per90', 0) or 0
+        xa90 = p.get('sm_xa_per90', 0) or 0
+        shots90 = p.get('sm_shots_per90', 0) or 0
+        goals = p.get('goals', 0) or 0
+        xg_total = p.get('expected_goals_xg', 0) or 0
+        xg_diff = goals - xg_total
+
+        reasons_pos, reasons_neg = [], []
+        if xg90 >= 0.4: reasons_pos.append(f"Elite Goal Threat ({xg90:.2f} xG/90)")
+        if xa90 >= 0.25: reasons_pos.append(f"Elite Playmaker ({xa90:.2f} xA/90)")
+        if 'PK' in p_tags: reasons_pos.append("Primary Penalty Taker")
+        if xg_diff <= -2.0: reasons_pos.append(f"Positive Regression Candidate (Underperforming xG by {abs(xg_diff):.1f})")
+        
+        if xg90 < 0.1: reasons_neg.append("Low Goal Threat")
+        if xg_diff >= 3.0: reasons_neg.append(f"Finishing overperformance (Unsustainable +{xg_diff:.1f})")
+        if 'LATE_SUB' in p_tags: reasons_neg.append("High rotation/substitute risk")
+
+        # Strategy Definition
+        if 'PK' in p_tags and xg90 > 0.3: strategy = "💎 PRIME GOALSCORER (Volume + PKs)"
+        elif xa90 > 0.20 and xg90 < 0.15: strategy = "🎯 ASSIST SPECIALIST (Fade goals, target assists)"
+        elif shots90 > 3.0: strategy = "🔫 VOLUME SHOOTER (Look for Shots/SOT props)"
+        elif xg_diff <= -2.5: strategy = "🍀 DUE FOR A GOAL (Positive Regression)"
+        else: strategy = "📊 STANDARD USAGE (Wait for lineup confirmation)"
+
+        st.markdown(f"**💡 STRATEGY:** {strategy}")
+        col_bull, col_bear = st.columns(2)
+        with col_bull:
+            st.markdown('<p style="color:#4CAF50; font-size:0.8rem; font-weight:bold;">✅ BULL CASE</p>', unsafe_allow_html=True)
+            for r in reasons_pos: st.markdown(f"- <span style='font-size:0.8rem;'>{r}</span>", unsafe_allow_html=True)
+        with col_bear:
+            st.markdown('<p style="color:#f44336; font-size:0.8rem; font-weight:bold;">⚠️ BEAR CASE</p>', unsafe_allow_html=True)
+            for r in reasons_neg: st.markdown(f"- <span style='font-size:0.8rem;'>{r}</span>", unsafe_allow_html=True)
+
+        # 5. CORE PERFORMANCE METRICS
         st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown('<p style="color:#606060;font-size:0.75rem;">SHOOTING</p>', unsafe_allow_html=True)
-            st.markdown(f'<p style="color:#a0a0a0;font-size:0.8rem;">Shots: {int(p.get("sp_total_shots",0) or 0)}<br>Goals: {int(p.get("goals",0) or 0)}<br>xG: {(p.get("expected_goals_xg",0) or 0):.2f}</p>', unsafe_allow_html=True)
+            st.markdown(f"**Shots/90:** {shots90:.2f}<br>**xG/90:** {xg90:.2f}<br>**Box Touches/90:** {(p.get('sm_touches_in_box_per90',0)):.1f}", unsafe_allow_html=True)
         with c2:
             st.markdown('<p style="color:#606060;font-size:0.75rem;">CREATION</p>', unsafe_allow_html=True)
-            st.markdown(f'<p style="color:#a0a0a0;font-size:0.8rem;">Chances: {int(p.get("chances_created",0) or 0)}<br>Assists: {int(p.get("assists",0) or 0)}<br>xA: {(p.get("expected_assists_xa",0) or 0):.2f}</p>', unsafe_allow_html=True)
+            st.markdown(f"**xA/90:** {xa90:.2f}<br>**Chances Created:** {int(p.get('chances_created',0))}<br>**Conversion:** {p.get('sm_assist_conversion',0)*100:.1f}%", unsafe_allow_html=True)
         with c3:
-            st.markdown('<p style="color:#606060;font-size:0.75rem;">PER 90</p>', unsafe_allow_html=True)
-            st.markdown(f'<p style="color:#a0a0a0;font-size:0.8rem;">xG/90: {(p.get("sm_xg_per90",0) or 0):.2f}<br>xA/90: {(p.get("sm_xa_per90",0) or 0):.2f}<br>Shots/90: {(p.get("sm_shots_per90",0) or 0):.2f}</p>', unsafe_allow_html=True)
+            st.markdown('<p style="color:#606060;font-size:0.75rem;">CONTEXT</p>', unsafe_allow_html=True)
+            st.markdown(f"**In Box %:** {p.get('sp_inside_box_pct',0)*100:.0f}%<br>**Header %:** {p.get('sp_header_pct',0)*100:.0f}%<br>**Accuracy:** {p.get('sm_shot_accuracy',0)*100:.0f}%", unsafe_allow_html=True)
+
+        # 6. MATCH LOG (Last 10)
+        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+        st.markdown('<p style="color:#606060;font-size:0.75rem;">RECENT MATCH LOG (Form Data)</p>', unsafe_allow_html=True)
+        
+        if lineups is not None and not lineups.empty:
+            p_log = lineups[lineups['player_id'] == pid].copy()
+            if not p_log.empty:
+                # Add a "Start" icon for visibility
+                p_log['St'] = p_log['is_starter'].apply(lambda x: '✅' if x else '🔄')
+                # Sort by match_id or date if available
+                log_disp = p_log.tail(10).sort_values('match_id', ascending=False)[['match_id', 'St', 'minutes_played', 'goals_in_match', 'assists_in_match', 'rating']]
+                log_disp.columns = ['Match', 'St', 'Min', 'G', 'A', 'Rating']
+                st.dataframe(log_disp, hide_index=True, use_container_width=True)
+            else:
+                st.info("No recent match logs found for this player.")
+
+
+
 
 # =============================================================================
 # UPDATED LINEUP INTEL SECTION
